@@ -1,2 +1,25 @@
-/mvnw text eol=lf
-*.cmd text eol=crlf
+# Normalise every text file to LF in the repository, regardless of the
+# contributor's platform or core.autocrlf setting. This repo is built on
+# Windows but CI runs on ubuntu-latest, so LF is the source of truth.
+* text=auto eol=lf
+
+# The Maven wrapper is executed directly by the Linux runner. CRLF here
+# produces the classic "bad interpreter: /bin/sh^M" failure.
+/mvnw       text eol=lf
+
+# Flyway reads these; keep the migration diffs platform-independent.
+*.sql       text eol=lf
+*.java      text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.properties text eol=lf
+
+# Windows-only scripts must keep CRLF or cmd.exe mishandles them.
+*.cmd       text eol=crlf
+*.bat       text eol=crlf
+
+# Never touch these.
+*.jar       binary
+*.png       binary
+*.jpg       binary
+*.ico       binary
