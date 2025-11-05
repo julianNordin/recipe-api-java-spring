@@ -1,0 +1,184 @@
+package com.recipeapi.domain;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
+import jakarta.persistence.Table;
+
+import java.time.Instant;
+
+/**
+ * A recipe: what to cook, how long it takes and how hard it is.
+ *
+ * <p>This class carries no relationships yet - ingredients and categories arrive in Phase 03.
+ */
+@Entity
+@Table(name = "recipes")
+public class Recipe {
+
+    /**
+     * IDENTITY rather than SEQUENCE. It maps directly onto the Postgres identity column the
+     * Flyway migration creates, which keeps the hand-written schema and the mapping obviously
+     * in step. The cost is that Hibernate cannot batch inserts under IDENTITY, because it has
+     * to round-trip to the database for every generated key - irrelevant at this write volume.
+     */
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false, length = 200)
+    private String title;
+
+    @Column(length = 1000)
+    private String description;
+
+    @Column(nullable = false, length = 5000)
+    private String instructions;
+
+    @Column(name = "prep_minutes", nullable = false)
+    private int prepMinutes;
+
+    @Column(name = "cook_minutes", nullable = false)
+    private int cookMinutes;
+
+    @Column(nullable = false)
+    private int servings;
+
+    /**
+     * STRING, not the JPA default of ORDINAL. Storing {@code 0}/{@code 1}/{@code 2} would make
+     * the rows unreadable in psql and would corrupt their meaning the moment a constant is
+     * inserted into the middle of {@link Difficulty}.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private Difficulty difficulty;
+
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt;
+
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt;
+
+    /** Required by JPA. Not for application use. */
+    protected Recipe() {
+    }
+
+    public Recipe(String title,
+                  String description,
+                  String instructions,
+                  int prepMinutes,
+                  int cookMinutes,
+                  int servings,
+                  Difficulty difficulty) {
+        this.title = title;
+        this.description = description;
+        this.instructions = instructions;
+        this.prepMinutes = prepMinutes;
+        this.cookMinutes = cookMinutes;
+        this.servings = servings;
+        this.difficulty = difficulty;
+    }
+
+    /**
+     * Total hands-on plus cooking time.
+     *
+     * <p>Derived on read rather than stored, so it can never drift out of step with the two
+     * columns it is computed from. Phase 12 filters on it with {@code maxMinutes}, which has to
+     * express the same sum as a SQL predicate because there is no column to compare against.
+     */
+    public int totalMinutes() {
+        return prepMinutes + cookMinutes;
+    }
+
+    @PrePersist
+    void onCreate() {
+        Instant now = Instant.now();
+        this.createdAt = now;
+        this.updatedAt = now;
+    }
+
+    @PreUpdate
+    void onUpdate() {
+        this.updatedAt = Instant.now();
+    }
+
+    public Long getId() {
+        return id;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public void setTitle(String title) {
+        this.title = title;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public String getInstructions() {
+        return instructions;
+    }
+
+    public void setInstructions(String instructions) {
+        this.instructions = instructions;
+    }
+
+    public int getPrepMinutes() {
+        return prepMinutes;
+    }
+
+    public void setPrepMinutes(int prepMinutes) {
+        this.prepMinutes = prepMinutes;
+    }
+
+    public int getCookMinutes() {
+        return cookMinutes;
+    }
+
+    public void setCookMinutes(int cookMinutes) {
+        this.cookMinutes = cookMinutes;
+    }
+
+    public int getServings() {
+        return servings;
+    }
+
+    public void setServings(int servings) {
+        this.servings = servings;
+    }
+
+    public Difficulty getDifficulty() {
+        return difficulty;
+    }
+
+    public void setDifficulty(Difficulty difficulty) {
+        this.difficulty = difficulty;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
+
+    @Override
+    public String toString() {
+        return "Recipe{id=%d, title='%s', difficulty=%s, totalMinutes=%d}"
+                .formatted(id, title, difficulty, totalMinutes());
+    }
+}
