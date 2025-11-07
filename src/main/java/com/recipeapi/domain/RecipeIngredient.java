@@ -109,9 +109,46 @@ public class RecipeIngredient {
         this.unit = unit;
     }
 
+    /**
+     * Identity by primary key, with the two rules a JPA entity has to respect.
+     *
+     * <p>A transient instance (null id) is equal only to itself - two unsaved recipes are not
+     * "the same recipe" just because their fields match. And the comparison goes through
+     * {@code getId()} rather than the field, because {@code other} may be an uninitialised
+     * Hibernate proxy whose field is still null while its getter returns the identifier.
+     */
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (!(o instanceof RecipeIngredient other)) {
+            return false;
+        }
+        return id != null && id.equals(other.getId());
+    }
+
+    /**
+     * Constant, and deliberately so. An entity's hash must not change when Hibernate assigns its
+     * id on flush, or the instance is lost inside any HashSet it was added to beforehand. Using
+     * the class literal rather than {@code getClass()} keeps a proxy and its target in agreement.
+     */
+    @Override
+    public int hashCode() {
+        return RecipeIngredient.class.hashCode();
+    }
+
+    /**
+     * Prints the two foreign keys, not the entities behind them. {@code getId()} on a lazy
+     * proxy is safe - Hibernate keeps the identifier on the proxy - so this cannot trigger a
+     * query, and it cannot recurse back into {@link Recipe}.
+     */
     @Override
     public String toString() {
-        return "RecipeIngredient{id=%d, recipe=%s, ingredient=%s, quantity=%s, unit=%s}"
-                .formatted(id, recipe, ingredient, quantity, unit);
+        return "RecipeIngredient{id=%d, recipeId=%s, ingredientId=%s, quantity=%s, unit=%s}"
+                .formatted(id,
+                        recipe == null ? null : recipe.getId(),
+                        ingredient == null ? null : ingredient.getId(),
+                        quantity, unit);
     }
 }

@@ -270,9 +270,46 @@ public class Recipe {
         return List.copyOf(ingredients);
     }
 
+    /**
+     * Identity by primary key, with the two rules a JPA entity has to respect.
+     *
+     * <p>A transient instance (null id) is equal only to itself - two unsaved recipes are not
+     * "the same recipe" just because their fields match. And the comparison goes through
+     * {@code getId()} rather than the field, because {@code other} may be an uninitialised
+     * Hibernate proxy whose field is still null while its getter returns the identifier.
+     */
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (!(o instanceof Recipe other)) {
+            return false;
+        }
+        return id != null && id.equals(other.getId());
+    }
+
+    /**
+     * Constant, and deliberately so. An entity's hash must not change when Hibernate assigns its
+     * id on flush, or the instance is lost inside any HashSet it was added to beforehand. Using
+     * the class literal rather than {@code getClass()} keeps a proxy and its target in agreement.
+     */
+    @Override
+    public int hashCode() {
+        return Recipe.class.hashCode();
+    }
+
+    /**
+     * Scalar columns only - never the associations.
+     *
+     * <p>Printing {@code ingredients} here recursed forever, because each line printed its
+     * recipe back. Even printing just {@code ingredients.size()} would be wrong: the collection
+     * is lazy, so a size() call inside a log statement either fires an unexpected query or
+     * throws LazyInitializationException once the session has closed.
+     */
     @Override
     public String toString() {
-        return "Recipe{id=%d, title='%s', difficulty=%s, totalMinutes=%d, categories=%s, ingredients=%s}"
-                .formatted(id, title, difficulty, totalMinutes(), categories, ingredients);
+        return "Recipe{id=%d, title='%s', difficulty=%s, totalMinutes=%d}"
+                .formatted(id, title, difficulty, totalMinutes());
     }
 }

@@ -49,6 +49,35 @@ public class Ingredient {
         this.name = name;
     }
 
+    /**
+     * Identity by primary key, with the two rules a JPA entity has to respect.
+     *
+     * <p>A transient instance (null id) is equal only to itself - two unsaved recipes are not
+     * "the same recipe" just because their fields match. And the comparison goes through
+     * {@code getId()} rather than the field, because {@code other} may be an uninitialised
+     * Hibernate proxy whose field is still null while its getter returns the identifier.
+     */
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (!(o instanceof Ingredient other)) {
+            return false;
+        }
+        return id != null && id.equals(other.getId());
+    }
+
+    /**
+     * Constant, and deliberately so. An entity's hash must not change when Hibernate assigns its
+     * id on flush, or the instance is lost inside any HashSet it was added to beforehand. Using
+     * the class literal rather than {@code getClass()} keeps a proxy and its target in agreement.
+     */
+    @Override
+    public int hashCode() {
+        return Ingredient.class.hashCode();
+    }
+
     @Override
     public String toString() {
         return "Ingredient{id=%d, name='%s'}".formatted(id, name);
