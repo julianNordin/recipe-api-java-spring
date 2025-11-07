@@ -1,5 +1,6 @@
 package com.recipeapi.domain;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -11,10 +12,12 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -89,6 +92,17 @@ public class Recipe {
     )
     private List<Category> categories = new ArrayList<>();
 
+    /**
+     * The recipe's ingredient lines. Unlike categories these <em>are</em> owned by the recipe:
+     * a "300 g of flour" line has no meaning apart from the recipe it belongs to.
+     *
+     * <p>Hence {@code cascade = ALL} plus {@code orphanRemoval = true} - saving a recipe saves
+     * its lines, deleting a recipe deletes them, and dropping a line from this collection
+     * deletes that row. Phase 07's PUT relies on exactly that to replace an ingredient list.
+     */
+    @OneToMany(mappedBy = "recipe", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<RecipeIngredient> ingredients = new ArrayList<>();
+
     /** Required by JPA. Not for application use. */
     protected Recipe() {
     }
@@ -137,6 +151,33 @@ public class Recipe {
     public void removeCategory(Category category) {
         categories.remove(category);
         category.getRecipes().remove(this);
+    }
+
+    /** Adds an ingredient line, setting the back-reference so orphanRemoval behaves. */
+    public RecipeIngredient addIngredient(Ingredient ingredient, BigDecimal quantity, MeasurementUnit unit) {
+        RecipeIngredient line = new RecipeIngredient(this, ingredient, quantity, unit);
+        ingredients.add(line);
+        return line;
+    }
+
+    public void removeIngredient(RecipeIngredient line) {
+        ingredients.remove(line);
+        line.setRecipe(null);
+    }
+
+    /**
+     * Empties the ingredient list in place.
+     *
+     * <p>Deliberately mutates the existing collection instead of assigning a fresh
+     * {@code ArrayList}. Replacing the instance that Hibernate handed us throws
+     * <em>"A collection with cascade=all-delete-orphan was no longer referenced by the owning
+     * entity instance"</em>, which is the single easiest way to break an orphanRemoval mapping.
+     */
+    public void clearIngredients() {
+        for (RecipeIngredient line : new ArrayList<>(ingredients)) {
+            line.setRecipe(null);
+        }
+        ingredients.clear();
     }
 
     @PrePersist
@@ -224,9 +265,14 @@ public class Recipe {
         return List.copyOf(categories);
     }
 
+    /** Unmodifiable on purpose: mutate through {@link #addIngredient} / {@link #removeIngredient}. */
+    public List<RecipeIngredient> getIngredients() {
+        return List.copyOf(ingredients);
+    }
+
     @Override
     public String toString() {
-        return "Recipe{id=%d, title='%s', difficulty=%s, totalMinutes=%d}"
-                .formatted(id, title, difficulty, totalMinutes());
+        return "Recipe{id=%d, title='%s', difficulty=%s, totalMinutes=%d, categories=%s, ingredients=%s}"
+                .formatted(id, title, difficulty, totalMinutes(), categories, ingredients);
     }
 }
