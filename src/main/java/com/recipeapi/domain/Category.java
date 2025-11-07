@@ -4,8 +4,13 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * A label a recipe can be filed under, e.g. "Breakfast" or "Vegetarian".
@@ -25,6 +30,14 @@ public class Category {
     @Column(nullable = false, length = 60, unique = true)
     private String name;
 
+    /**
+     * Inverse side - {@code mappedBy} means this owns no join table and writing to it alone
+     * persists nothing. It exists so Phase 15 can LEFT JOIN from Category to count recipes,
+     * including the categories that have none, which a join from the Recipe side cannot see.
+     */
+    @ManyToMany(mappedBy = "categories", fetch = FetchType.LAZY)
+    private List<Recipe> recipes = new ArrayList<>();
+
     /** Required by JPA. Not for application use. */
     protected Category() {
     }
@@ -43,6 +56,14 @@ public class Category {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    /**
+     * Mutable by design: {@link Recipe#addCategory} writes through this to keep both sides in
+     * step. Application code should go through {@code Recipe}, not here.
+     */
+    List<Recipe> getRecipes() {
+        return recipes;
     }
 
     @Override

@@ -6,12 +6,18 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * A recipe: what to cook, how long it takes and how hard it is.
@@ -65,6 +71,24 @@ public class Recipe {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    /**
+     * The owning side of the many-to-many, so this is where the join table is declared.
+     *
+     * <p>An explicit {@code @JoinTable} rather than Hibernate's defaults: the Flyway migration
+     * writes this table by hand, so its name and both column names have to be stated here or the
+     * mapping and the schema drift apart silently.
+     *
+     * <p>No cascade. Categories are shared reference data - cascading a recipe delete into them
+     * would delete "Breakfast" out from under every other recipe using it.
+     */
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "recipe_categories",
+            joinColumns = @JoinColumn(name = "recipe_id"),
+            inverseJoinColumns = @JoinColumn(name = "category_id")
+    )
+    private List<Category> categories = new ArrayList<>();
+
     /** Required by JPA. Not for application use. */
     protected Recipe() {
     }
@@ -94,6 +118,25 @@ public class Recipe {
      */
     public int totalMinutes() {
         return prepMinutes + cookMinutes;
+    }
+
+    /**
+     * Attaches a category, keeping both sides of the association in step.
+     *
+     * <p>JPA only persists what the owning side says, but an object graph where one side has
+     * been updated and the other has not is a bug waiting for the next read from the same
+     * persistence context, which serves the stale in-memory collection rather than re-querying.
+     */
+    public void addCategory(Category category) {
+        if (!categories.contains(category)) {
+            categories.add(category);
+            category.getRecipes().add(this);
+        }
+    }
+
+    public void removeCategory(Category category) {
+        categories.remove(category);
+        category.getRecipes().remove(this);
     }
 
     @PrePersist
@@ -174,6 +217,11 @@ public class Recipe {
 
     public Instant getUpdatedAt() {
         return updatedAt;
+    }
+
+    /** Unmodifiable on purpose: mutate through {@link #addCategory} / {@link #removeCategory}. */
+    public List<Category> getCategories() {
+        return List.copyOf(categories);
     }
 
     @Override
