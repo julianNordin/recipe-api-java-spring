@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: recipe-api
+
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:recipes}
+    username: ${POSTGRES_USER:recipes}
+    password: ${POSTGRES_PASSWORD:recipes}
+
+  jpa:
+    hibernate:
+      # validate, never update or create-drop. Flyway owns the schema; Hibernate's job is to
+      # complain loudly when the mapping and the migrations have drifted apart.
+      ddl-auto: validate
+    # Off deliberately. Spring Boot defaults this to true and warns about it at startup: it
+    # holds the persistence context open for the whole HTTP request, so a lazy association
+    # touched during JSON serialisation quietly issues a query instead of failing. That hides
+    # exactly the N+1 problems Phase 13 exists to find.
+    open-in-view: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration

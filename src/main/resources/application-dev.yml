@@ -1,0 +1,14 @@
+# Activate with: --spring.profiles.active=dev  (or SPRING_PROFILES_ACTIVE=dev)
+#
+# Everything here is diagnostics. Nothing in this profile changes application behaviour, so a
+# bug seen with the profile on is a real bug.
+
+spring:
+  jpa:
+    properties:
+      hibernate:
+        format_sql: true
+
+logging:
+  level:
+    org.hibernate.SQL: DEBUG
