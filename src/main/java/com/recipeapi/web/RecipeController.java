@@ -1,7 +1,8 @@
 package com.recipeapi.web;
 
-import com.recipeapi.domain.Recipe;
-import com.recipeapi.repository.RecipeRepository;
+import com.recipeapi.service.RecipeService;
+import com.recipeapi.web.dto.RecipeResponse;
+import com.recipeapi.web.dto.RecipeSummaryResponse;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -14,19 +15,19 @@ import java.util.List;
 @RequestMapping("/api/recipes")
 public class RecipeController {
 
-    private final RecipeRepository recipes;
+    private final RecipeService recipes;
 
-    public RecipeController(RecipeRepository recipes) {
+    public RecipeController(RecipeService recipes) {
         this.recipes = recipes;
     }
 
     @GetMapping
-    public List<Recipe> list() {
+    public List<RecipeSummaryResponse> list() {
         return recipes.findAll();
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Recipe> byId(@PathVariable Long id) {
+    public ResponseEntity<RecipeResponse> byId(@PathVariable Long id) {
         return recipes.findById(id)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
