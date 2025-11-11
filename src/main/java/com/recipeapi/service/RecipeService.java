@@ -73,6 +73,67 @@ public class RecipeService {
     }
 
     /**
+     * Full replacement, as PUT implies: whatever the payload says is what the recipe becomes.
+     *
+     * <p>The ingredient list is replaced by emptying the existing collection and refilling it.
+     * That is what {@code orphanRemoval = true} is for - lines dropped from the collection are
+     * deleted rather than left behind pointing at nothing. It has to go through
+     * {@code clearIngredients()}, which mutates in place; assigning a fresh list would throw
+     * "A collection with cascade=all-delete-orphan was no longer referenced by the owning entity
+     * instance".
+     *
+     * <p>The explicit flush is not decoration. The entity is managed, so the UPDATE would
+     * otherwise be issued at commit - after this method has already mapped the response - and
+     * {@code @PreUpdate} would not yet have refreshed {@code updatedAt}, so the caller would be
+     * handed the old timestamp.
+     */
+    @Transactional
+    public Optional<RecipeResponse> update(Long id, RecipeRequest request) {
+        return recipes.findById(id).map(recipe -> {
+            recipe.setTitle(request.title());
+            recipe.setDescription(request.description());
+            recipe.setInstructions(request.instructions());
+            recipe.setPrepMinutes(request.prepMinutes());
+            recipe.setCookMinutes(request.cookMinutes());
+            recipe.setServings(request.servings());
+            recipe.setDifficulty(request.difficulty());
+
+            recipe.clearIngredients();
+            recipe.clearCategories();
+
+            // Push the DELETEs out before the INSERTs go in. Hibernate orders a flush by action
+            // type, not by the order the code did things, and the collection inserts are issued
+            // ahead of the collection deletes - so replacing a list that keeps any of its
+            // members re-inserts a row the old one is still occupying:
+            //   duplicate key value violates unique constraint
+            //   "ux_recipe_ingredients_recipe_ingredient"
+            //   Detail: Key (recipe_id, ingredient_id)=(2, 1) already exists.
+            // Only shows up when a PUT keeps an ingredient it already had, which is the common
+            // case rather than an edge case.
+            recipes.flush();
+
+            applyIngredients(recipe, request.ingredients());
+            applyCategories(recipe, request.categories());
+
+            recipes.flush();
+            return mapper.toResponse(recipe);
+        });
+    }
+
+    /**
+     * @return false if there was no such recipe, so the controller can answer 404 rather than
+     *         pretending a delete happened.
+     */
+    @Transactional
+    public boolean delete(Long id) {
+        if (!recipes.existsById(id)) {
+            return false;
+        }
+        recipes.deleteById(id);
+        return true;
+    }
+
+    /**
      * Resolves each requested ingredient name to a row, creating one only if that name has never
      * been seen.
      *

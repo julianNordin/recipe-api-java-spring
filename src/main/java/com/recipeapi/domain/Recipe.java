@@ -153,6 +153,13 @@ public class Recipe {
         category.getRecipes().remove(this);
     }
 
+    /** Detaches every category, keeping both sides in step. Mirrors {@link #clearIngredients}. */
+    public void clearCategories() {
+        for (Category category : new ArrayList<>(categories)) {
+            removeCategory(category);
+        }
+    }
+
     /** Adds an ingredient line, setting the back-reference so orphanRemoval behaves. */
     public RecipeIngredient addIngredient(Ingredient ingredient, BigDecimal quantity, MeasurementUnit unit) {
         RecipeIngredient line = new RecipeIngredient(this, ingredient, quantity, unit);
