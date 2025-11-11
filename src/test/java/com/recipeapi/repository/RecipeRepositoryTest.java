@@ -6,8 +6,10 @@ import com.recipeapi.domain.Ingredient;
 import com.recipeapi.domain.MeasurementUnit;
 import com.recipeapi.domain.Recipe;
 import com.recipeapi.domain.RecipeIngredient;
+import com.recipeapi.support.AbstractPostgresTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 
 import java.math.BigDecimal;
@@ -18,7 +20,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Proves the cascade and orphan-removal semantics declared on {@link Recipe} actually behave
  * that way against Postgres, rather than only reading as though they do.
  */
-class RecipeRepositoryTest extends AbstractRepositoryTest {
+@DataJpaTest
+class RecipeRepositoryTest extends AbstractPostgresTest {
 
     @Autowired
     private RecipeRepository recipes;

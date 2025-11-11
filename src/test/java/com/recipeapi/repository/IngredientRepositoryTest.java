@@ -1,10 +1,12 @@
 package com.recipeapi.repository;
 
 import com.recipeapi.domain.Ingredient;
+import com.recipeapi.support.AbstractPostgresTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.dao.DataIntegrityViolationException;
 
 import javax.sql.DataSource;
@@ -14,7 +16,8 @@ import java.sql.DatabaseMetaData;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-class IngredientRepositoryTest extends AbstractRepositoryTest {
+@DataJpaTest
+class IngredientRepositoryTest extends AbstractPostgresTest {
 
     @Autowired
     private IngredientRepository ingredients;
