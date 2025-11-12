@@ -3,6 +3,7 @@ package com.recipeapi.service;
 import com.recipeapi.domain.Category;
 import com.recipeapi.domain.Ingredient;
 import com.recipeapi.domain.Recipe;
+import com.recipeapi.exception.DuplicateIngredientException;
 import com.recipeapi.exception.NotFoundException;
 import com.recipeapi.exception.UnknownCategoryException;
 import com.recipeapi.repository.CategoryRepository;
@@ -17,9 +18,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * The transaction boundary for recipes.
@@ -150,8 +153,18 @@ public class RecipeService {
         if (lines == null) {
             return;
         }
+        Set<String> seen = new HashSet<>();
         for (RecipeIngredientRequest line : lines) {
             String name = line.name().trim();
+
+            // Compared case-insensitively, because "Flour" and "flour" resolve to the same row -
+            // so listing both is a duplicate even though the strings differ. Rejecting it here
+            // rather than letting UNIQUE (recipe_id, ingredient_id) catch it at flush turns a
+            // 500 carrying a SQL message into a 400 that names the ingredient.
+            if (!seen.add(name.toLowerCase(Locale.ROOT))) {
+                throw new DuplicateIngredientException(name);
+            }
+
             Ingredient ingredient = ingredients.findByNameIgnoreCase(name)
                     .orElseGet(() -> ingredients.save(new Ingredient(name)));
             recipe.addIngredient(ingredient, line.quantity(), line.unit());
