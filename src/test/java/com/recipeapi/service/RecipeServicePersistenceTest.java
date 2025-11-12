@@ -2,6 +2,7 @@ package com.recipeapi.service;
 
 import com.recipeapi.domain.Difficulty;
 import com.recipeapi.domain.MeasurementUnit;
+import com.recipeapi.exception.DuplicateIngredientException;
 import com.recipeapi.exception.NotFoundException;
 import com.recipeapi.exception.UnknownCategoryException;
 import com.recipeapi.repository.IngredientRepository;
@@ -106,6 +107,16 @@ class RecipeServicePersistenceTest extends AbstractPostgresTest {
         assertThat(updated.categories())
                 .as("keeping a category across a replacement must not collide either")
                 .containsExactly("Breakfast");
+    }
+
+    @Test
+    void rejectsTheSameIngredientListedTwiceUnderDifferentCasing() {
+        assertThatThrownBy(() -> service.create(request(
+                List.of(line("Flour", "100", MeasurementUnit.GRAM),
+                        line("flour", "50", MeasurementUnit.GRAM)),
+                List.of())))
+                .isInstanceOf(DuplicateIngredientException.class)
+                .hasMessageContaining("listed more than once");
     }
 
     @Test
