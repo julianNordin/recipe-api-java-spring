@@ -4,6 +4,7 @@ import com.recipeapi.service.RecipeService;
 import com.recipeapi.web.dto.RecipeRequest;
 import com.recipeapi.web.dto.RecipeResponse;
 import com.recipeapi.web.dto.RecipeSummaryResponse;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -39,7 +40,7 @@ public class RecipeController {
      * GET just to learn the generated id and timestamps.
      */
     @PostMapping
-    public ResponseEntity<RecipeResponse> create(@RequestBody RecipeRequest request) {
+    public ResponseEntity<RecipeResponse> create(@Valid @RequestBody RecipeRequest request) {
         RecipeResponse created = recipes.create(request);
         URI location = ServletUriComponentsBuilder.fromCurrentRequest()
                 .path("/{id}")
@@ -56,7 +57,7 @@ public class RecipeController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<RecipeResponse> update(@PathVariable Long id, @RequestBody RecipeRequest request) {
+    public ResponseEntity<RecipeResponse> update(@PathVariable Long id, @Valid @RequestBody RecipeRequest request) {
         return recipes.update(id, request)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
