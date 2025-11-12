@@ -3,6 +3,8 @@ package com.recipeapi.service;
 import com.recipeapi.domain.Category;
 import com.recipeapi.domain.Ingredient;
 import com.recipeapi.domain.Recipe;
+import com.recipeapi.exception.NotFoundException;
+import com.recipeapi.exception.UnknownCategoryException;
 import com.recipeapi.repository.CategoryRepository;
 import com.recipeapi.repository.IngredientRepository;
 import com.recipeapi.repository.RecipeRepository;
@@ -18,7 +20,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * The transaction boundary for recipes.
@@ -51,8 +52,8 @@ public class RecipeService {
     }
 
     @Transactional(readOnly = true)
-    public Optional<RecipeResponse> findById(Long id) {
-        return recipes.findById(id).map(mapper::toResponse);
+    public RecipeResponse findById(Long id) {
+        return mapper.toResponse(require(id));
     }
 
     @Transactional
@@ -88,49 +89,51 @@ public class RecipeService {
      * handed the old timestamp.
      */
     @Transactional
-    public Optional<RecipeResponse> update(Long id, RecipeRequest request) {
-        return recipes.findById(id).map(recipe -> {
-            recipe.setTitle(request.title());
-            recipe.setDescription(request.description());
-            recipe.setInstructions(request.instructions());
-            recipe.setPrepMinutes(request.prepMinutes());
-            recipe.setCookMinutes(request.cookMinutes());
-            recipe.setServings(request.servings());
-            recipe.setDifficulty(request.difficulty());
+    public RecipeResponse update(Long id, RecipeRequest request) {
+        Recipe recipe = require(id);
+        recipe.setTitle(request.title());
+        recipe.setDescription(request.description());
+        recipe.setInstructions(request.instructions());
+        recipe.setPrepMinutes(request.prepMinutes());
+        recipe.setCookMinutes(request.cookMinutes());
+        recipe.setServings(request.servings());
+        recipe.setDifficulty(request.difficulty());
 
-            recipe.clearIngredients();
-            recipe.clearCategories();
+        recipe.clearIngredients();
+        recipe.clearCategories();
 
-            // Push the DELETEs out before the INSERTs go in. Hibernate orders a flush by action
-            // type, not by the order the code did things, and the collection inserts are issued
-            // ahead of the collection deletes - so replacing a list that keeps any of its
-            // members re-inserts a row the old one is still occupying:
-            //   duplicate key value violates unique constraint
-            //   "ux_recipe_ingredients_recipe_ingredient"
-            //   Detail: Key (recipe_id, ingredient_id)=(2, 1) already exists.
-            // Only shows up when a PUT keeps an ingredient it already had, which is the common
-            // case rather than an edge case.
-            recipes.flush();
+        // Push the DELETEs out before the INSERTs go in. Hibernate orders a flush by action
+        // type, not by the order the code did things, and the collection inserts are issued
+        // ahead of the collection deletes - so replacing a list that keeps any of its members
+        // re-inserts a row the old one is still occupying:
+        //   duplicate key value violates unique constraint
+        //   "ux_recipe_ingredients_recipe_ingredient"
+        //   Detail: Key (recipe_id, ingredient_id)=(2, 1) already exists.
+        // Only shows up when a PUT keeps an ingredient it already had, which is the common case
+        // rather than an edge case.
+        recipes.flush();
 
-            applyIngredients(recipe, request.ingredients());
-            applyCategories(recipe, request.categories());
+        applyIngredients(recipe, request.ingredients());
+        applyCategories(recipe, request.categories());
 
-            recipes.flush();
-            return mapper.toResponse(recipe);
-        });
+        recipes.flush();
+        return mapper.toResponse(recipe);
+    }
+
+    @Transactional
+    public void delete(Long id) {
+        recipes.delete(require(id));
     }
 
     /**
-     * @return false if there was no such recipe, so the controller can answer 404 rather than
-     *         pretending a delete happened.
+     * The single place a missing recipe becomes a 404.
+     *
+     * <p>Every caller used to unwrap an Optional and decide for itself what absence meant.
+     * Funnelling it through one method means the status, the message and the problem-detail type
+     * cannot drift apart between endpoints.
      */
-    @Transactional
-    public boolean delete(Long id) {
-        if (!recipes.existsById(id)) {
-            return false;
-        }
-        recipes.deleteById(id);
-        return true;
+    private Recipe require(Long id) {
+        return recipes.findById(id).orElseThrow(() -> new NotFoundException("Recipe", id));
     }
 
     /**
@@ -181,7 +184,7 @@ public class RecipeService {
         for (String name : wanted) {
             Category category = byLowerName.get(name.toLowerCase(Locale.ROOT));
             if (category == null) {
-                throw new IllegalArgumentException("Unknown category: " + name);
+                throw new UnknownCategoryException(name);
             }
             recipe.addCategory(category);
         }

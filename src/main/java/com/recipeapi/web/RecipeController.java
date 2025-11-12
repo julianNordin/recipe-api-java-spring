@@ -5,6 +5,7 @@ import com.recipeapi.web.dto.RecipeRequest;
 import com.recipeapi.web.dto.RecipeResponse;
 import com.recipeapi.web.dto.RecipeSummaryResponse;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
@@ -50,24 +52,19 @@ public class RecipeController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<RecipeResponse> byId(@PathVariable Long id) {
-        return recipes.findById(id)
-                .map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.notFound().build());
+    public RecipeResponse byId(@PathVariable Long id) {
+        return recipes.findById(id);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<RecipeResponse> update(@PathVariable Long id, @Valid @RequestBody RecipeRequest request) {
-        return recipes.update(id, request)
-                .map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.notFound().build());
+    public RecipeResponse update(@PathVariable Long id, @Valid @RequestBody RecipeRequest request) {
+        return recipes.update(id, request);
     }
 
     /** 204, not 200: there is nothing meaningful to return once the recipe is gone. */
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
-        return recipes.delete(id)
-                ? ResponseEntity.noContent().build()
-                : ResponseEntity.notFound().build();
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable Long id) {
+        recipes.delete(id);
     }
 }

@@ -2,6 +2,8 @@ package com.recipeapi.service;
 
 import com.recipeapi.domain.Difficulty;
 import com.recipeapi.domain.MeasurementUnit;
+import com.recipeapi.exception.NotFoundException;
+import com.recipeapi.exception.UnknownCategoryException;
 import com.recipeapi.repository.IngredientRepository;
 import com.recipeapi.support.AbstractPostgresTest;
 import com.recipeapi.web.dto.RecipeIngredientRequest;
@@ -92,7 +94,7 @@ class RecipeServicePersistenceTest extends AbstractPostgresTest {
         RecipeResponse updated = service.update(created.id(), request(
                 List.of(line("Flour", "260", MeasurementUnit.GRAM),
                         line("Egg", "2", MeasurementUnit.PIECE)),
-                List.of("Breakfast"))).orElseThrow();
+                List.of("Breakfast")));
 
         assertThat(updated.ingredients())
                 .extracting(it -> it.name())
@@ -111,17 +113,21 @@ class RecipeServicePersistenceTest extends AbstractPostgresTest {
         assertThatThrownBy(() -> service.create(request(
                 List.of(line("Flour", "250", MeasurementUnit.GRAM)),
                 List.of("Definitely Not A Category"))))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(UnknownCategoryException.class)
                 .hasMessageContaining("Definitely Not A Category");
     }
 
     @Test
-    void deleteReportsWhetherThereWasAnythingToDelete() {
+    void deletingTwiceReportsTheSecondAttemptAsNotFound() {
         RecipeResponse created = service.create(request(
                 List.of(line("Salt", "1", MeasurementUnit.PINCH)), List.of()));
 
-        assertThat(service.delete(created.id())).isTrue();
-        assertThat(service.delete(created.id())).isFalse();
-        assertThat(service.findById(created.id())).isEmpty();
+        service.delete(created.id());
+
+        assertThatThrownBy(() -> service.delete(created.id()))
+                .isInstanceOf(NotFoundException.class);
+        assertThatThrownBy(() -> service.findById(created.id()))
+                .isInstanceOf(NotFoundException.class)
+                .hasMessageContaining("was not found");
     }
 }
