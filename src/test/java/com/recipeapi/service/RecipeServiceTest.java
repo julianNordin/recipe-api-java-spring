@@ -2,9 +2,13 @@ package com.recipeapi.service;
 
 import com.recipeapi.domain.Difficulty;
 import com.recipeapi.domain.Ingredient;
+import com.recipeapi.domain.Category;
 import com.recipeapi.domain.MeasurementUnit;
 import com.recipeapi.domain.Recipe;
 import com.recipeapi.domain.RecipeIngredient;
+import com.recipeapi.exception.DuplicateIngredientException;
+import com.recipeapi.exception.NotFoundException;
+import com.recipeapi.exception.UnknownCategoryException;
 import com.recipeapi.repository.CategoryRepository;
 import com.recipeapi.repository.IngredientRepository;
 import com.recipeapi.repository.RecipeRepository;
@@ -26,8 +30,11 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.groups.Tuple.tuple;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -196,5 +203,90 @@ class RecipeServiceTest {
         assertThat(created.prepMinutes()).isEqualTo(10);
         assertThat(created.cookMinutes()).isEqualTo(15);
         assertThat(created.totalMinutes()).isEqualTo(25);
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Failure paths. Each one also asserts that nothing was written, because a rule that
+    // rejects the request only after persisting half of it is not much of a rule.
+    // ---------------------------------------------------------------------------------------
+
+    @Test
+    void findByIdReportsAMissingRecipeAsNotFound() {
+        when(recipes.findById(404L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.findById(404L))
+                .isInstanceOf(NotFoundException.class)
+                .hasMessage("Recipe 404 was not found");
+    }
+
+    @Test
+    void updateReportsAMissingRecipeAsNotFoundAndWritesNothing() {
+        when(recipes.findById(404L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.update(404L, request(List.of(line("Flour", "1", MeasurementUnit.GRAM)))))
+                .isInstanceOf(NotFoundException.class);
+
+        verify(recipes, never()).save(any());
+        verify(recipes, never()).flush();
+    }
+
+    @Test
+    void deleteReportsAMissingRecipeAsNotFoundAndDeletesNothing() {
+        when(recipes.findById(404L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.delete(404L)).isInstanceOf(NotFoundException.class);
+
+        verify(recipes, never()).delete(any());
+        verify(recipes, never()).deleteById(anyLong());
+    }
+
+    @Test
+    void rejectsTheSameIngredientTwiceBeforePersistingAnything() {
+        when(ingredients.findByNameIgnoreCase("Flour")).thenReturn(Optional.of(new Ingredient("Flour")));
+
+        assertThatThrownBy(() -> service.create(request(List.of(
+                line("Flour", "100", MeasurementUnit.GRAM),
+                line("flour", "50", MeasurementUnit.GRAM)))))
+                .isInstanceOf(DuplicateIngredientException.class)
+                .hasMessageContaining("listed more than once");
+
+        verify(recipes, never()).save(any());
+    }
+
+    @Test
+    void rejectsAnUnknownCategoryBeforePersistingAnything() {
+        when(ingredients.findByNameIgnoreCase(anyString())).thenReturn(Optional.of(new Ingredient("Flour")));
+        when(categories.findAllByLowerCasedNameIn(anyCollection())).thenReturn(List.of());
+
+        RecipeRequest withBadCategory = new RecipeRequest("Pancakes", "Fluffy", "Mix. Fry.", 10, 15, 4,
+                Difficulty.EASY, List.of(line("Flour", "300", MeasurementUnit.GRAM)), List.of("Nope"));
+
+        assertThatThrownBy(() -> service.create(withBadCategory))
+                .isInstanceOf(UnknownCategoryException.class)
+                .hasMessageContaining("Nope");
+
+        verify(recipes, never()).save(any());
+    }
+
+    /**
+     * The batch-lookup contract. Resolving categories one name at a time would still pass every
+     * behavioural assertion above while quietly turning one query into N, so the query count is
+     * worth pinning as a property in its own right.
+     */
+    @Test
+    void resolvesEveryCategoryInASingleQuery() {
+        savePassesTheRecipeThrough();
+        when(ingredients.findByNameIgnoreCase(anyString())).thenReturn(Optional.of(new Ingredient("Flour")));
+        when(categories.findAllByLowerCasedNameIn(anyCollection()))
+                .thenReturn(List.of(new Category("Breakfast"), new Category("Vegetarian")));
+
+        RecipeRequest withCategories = new RecipeRequest("Pancakes", "Fluffy", "Mix. Fry.", 10, 15, 4,
+                Difficulty.EASY, List.of(line("Flour", "300", MeasurementUnit.GRAM)),
+                List.of("Breakfast", "Vegetarian"));
+
+        service.create(withCategories);
+
+        verify(categories, times(1)).findAllByLowerCasedNameIn(anyCollection());
+        verify(categories, never()).findByNameIgnoreCase(anyString());
     }
 }
