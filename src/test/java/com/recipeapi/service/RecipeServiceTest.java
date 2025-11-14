@@ -3,6 +3,8 @@ package com.recipeapi.service;
 import com.recipeapi.domain.Difficulty;
 import com.recipeapi.domain.Ingredient;
 import com.recipeapi.domain.MeasurementUnit;
+import com.recipeapi.domain.Recipe;
+import com.recipeapi.domain.RecipeIngredient;
 import com.recipeapi.repository.CategoryRepository;
 import com.recipeapi.repository.IngredientRepository;
 import com.recipeapi.repository.RecipeRepository;
@@ -12,6 +14,8 @@ import com.recipeapi.web.dto.RecipeResponse;
 import com.recipeapi.web.mapper.RecipeMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
@@ -22,6 +26,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.groups.Tuple.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
@@ -58,6 +63,12 @@ class RecipeServiceTest {
 
     @InjectMocks
     private RecipeService service;
+
+    @Captor
+    private ArgumentCaptor<Recipe> persistedRecipe;
+
+    @Captor
+    private ArgumentCaptor<Ingredient> persistedIngredient;
 
     private static RecipeRequest request(List<RecipeIngredientRequest> lines) {
         return new RecipeRequest("Pancakes", "Fluffy", "Mix. Fry.", 10, 15, 4,
@@ -108,6 +119,71 @@ class RecipeServiceTest {
 
         verify(ingredients, times(2)).findByNameIgnoreCase(anyString());
         verify(ingredients, times(1)).save(any());
+    }
+
+    /**
+     * What was handed to save(), rather than what came back out of the service.
+     *
+     * <p>The response is built by the mapper from the same object, so asserting on it would
+     * partly be asserting that the mapper copied fields correctly - which its own test already
+     * covers. The captured argument is the thing the database would actually have received.
+     */
+    @Test
+    void persistsTheRecipeAndTheLinesTheRequestDescribed() {
+        savePassesTheRecipeThrough();
+        when(ingredients.findByNameIgnoreCase("Flour")).thenReturn(Optional.of(new Ingredient("Flour")));
+        when(ingredients.findByNameIgnoreCase("Milk")).thenReturn(Optional.of(new Ingredient("Milk")));
+
+        service.create(request(List.of(
+                line("Flour", "300", MeasurementUnit.GRAM),
+                line("Milk", "0.50", MeasurementUnit.LITRE))));
+
+        verify(recipes).save(persistedRecipe.capture());
+        Recipe saved = persistedRecipe.getValue();
+
+        assertThat(saved.getTitle()).isEqualTo("Pancakes");
+        assertThat(saved.getInstructions()).isEqualTo("Mix. Fry.");
+        assertThat(saved.getServings()).isEqualTo(4);
+        assertThat(saved.getDifficulty()).isEqualTo(Difficulty.EASY);
+        assertThat(saved.getIngredients())
+                .extracting(persisted -> persisted.getIngredient().getName(),
+                        RecipeIngredient::getQuantity,
+                        RecipeIngredient::getUnit)
+                .containsExactly(
+                        tuple("Flour", new BigDecimal("300"), MeasurementUnit.GRAM),
+                        tuple("Milk", new BigDecimal("0.50"), MeasurementUnit.LITRE));
+    }
+
+    /**
+     * Every line must point back at its recipe before the save. orphanRemoval and the
+     * recipe_id NOT NULL column both depend on it, and a mocked repository will happily accept a
+     * half-wired graph that Postgres would reject.
+     */
+    @Test
+    void wiresBothSidesOfEachIngredientLineBeforePersisting() {
+        savePassesTheRecipeThrough();
+        when(ingredients.findByNameIgnoreCase(anyString())).thenReturn(Optional.of(new Ingredient("Flour")));
+
+        service.create(request(List.of(line("Flour", "300", MeasurementUnit.GRAM))));
+
+        verify(recipes).save(persistedRecipe.capture());
+        Recipe saved = persistedRecipe.getValue();
+
+        assertThat(saved.getIngredients())
+                .singleElement()
+                .satisfies(persisted -> assertThat(persisted.getRecipe()).isSameAs(saved));
+    }
+
+    @Test
+    void trimsAnIngredientNameBeforeCreatingIt() {
+        savePassesTheRecipeThrough();
+        when(ingredients.findByNameIgnoreCase("Sourdough Starter")).thenReturn(Optional.empty());
+        when(ingredients.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.create(request(List.of(line("   Sourdough Starter   ", "100", MeasurementUnit.GRAM))));
+
+        verify(ingredients).save(persistedIngredient.capture());
+        assertThat(persistedIngredient.getValue().getName()).isEqualTo("Sourdough Starter");
     }
 
     @Test
