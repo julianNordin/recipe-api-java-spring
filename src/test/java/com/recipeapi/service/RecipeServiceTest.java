@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
@@ -36,6 +37,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -288,5 +290,63 @@ class RecipeServiceTest {
 
         verify(categories, times(1)).findAllByLowerCasedNameIn(anyCollection());
         verify(categories, never()).findByNameIgnoreCase(anyString());
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Update. The ordering here is the unit-level counterpart to the flush-ordering bug caught
+    // in Phase 07 - see replacingTheIngredientListWhileKeepingOneOfThem for the SQL-level proof.
+    // ---------------------------------------------------------------------------------------
+
+    @Test
+    void replacesTheIngredientListRatherThanAppendingToIt() {
+        Recipe existing = new Recipe("Waffles", "Crisp", "Batter. Iron.", 15, 10, 2, Difficulty.MEDIUM);
+        existing.addIngredient(new Ingredient("Buttermilk"), new BigDecimal("300"), MeasurementUnit.MILLILITRE);
+        when(recipes.findById(1L)).thenReturn(Optional.of(existing));
+        when(ingredients.findByNameIgnoreCase("Flour")).thenReturn(Optional.of(new Ingredient("Flour")));
+
+        RecipeResponse updated = service.update(1L, request(List.of(line("Flour", "250", MeasurementUnit.GRAM))));
+
+        assertThat(updated.ingredients())
+                .extracting(persisted -> persisted.name())
+                .as("the old line must be gone, not merely joined by the new one")
+                .containsExactly("Flour");
+    }
+
+    /**
+     * The unit-level statement of the flush-ordering fix.
+     *
+     * <p>Hibernate issues collection inserts before collection deletes within one flush, so the
+     * replacement lines must not be added until the removals have already been pushed out. Stated
+     * as an ordering constraint on the collaborators, this fails the moment someone "tidies up"
+     * the seemingly redundant first flush.
+     */
+    @Test
+    void flushesTheRemovalsBeforeResolvingTheReplacementLines() {
+        Recipe existing = new Recipe("Waffles", "Crisp", "Batter. Iron.", 15, 10, 2, Difficulty.MEDIUM);
+        existing.addIngredient(new Ingredient("Flour"), new BigDecimal("250"), MeasurementUnit.GRAM);
+        when(recipes.findById(1L)).thenReturn(Optional.of(existing));
+        when(ingredients.findByNameIgnoreCase("Flour")).thenReturn(Optional.of(new Ingredient("Flour")));
+
+        service.update(1L, request(List.of(line("Flour", "260", MeasurementUnit.GRAM))));
+
+        InOrder ordered = inOrder(recipes, ingredients);
+        ordered.verify(recipes).flush();
+        ordered.verify(ingredients).findByNameIgnoreCase("Flour");
+        ordered.verify(recipes).flush();
+    }
+
+    /**
+     * The second flush exists so @PreUpdate has run before the entity is mapped; without it the
+     * caller is handed a stale updatedAt.
+     */
+    @Test
+    void flushesAgainBeforeMappingSoTheResponseCarriesFreshTimestamps() {
+        Recipe existing = new Recipe("Waffles", "Crisp", "Batter. Iron.", 15, 10, 2, Difficulty.MEDIUM);
+        when(recipes.findById(1L)).thenReturn(Optional.of(existing));
+        when(ingredients.findByNameIgnoreCase(anyString())).thenReturn(Optional.of(new Ingredient("Flour")));
+
+        service.update(1L, request(List.of(line("Flour", "250", MeasurementUnit.GRAM))));
+
+        verify(recipes, times(2)).flush();
     }
 }
