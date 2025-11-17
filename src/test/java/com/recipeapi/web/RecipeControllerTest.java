@@ -2,7 +2,9 @@ package com.recipeapi.web;
 
 import com.recipeapi.domain.Difficulty;
 import com.recipeapi.domain.MeasurementUnit;
+import com.recipeapi.exception.DuplicateIngredientException;
 import com.recipeapi.exception.NotFoundException;
+import com.recipeapi.exception.UnknownCategoryException;
 import com.recipeapi.service.RecipeService;
 import com.recipeapi.web.dto.RecipeIngredientRequest;
 import com.recipeapi.web.dto.RecipeIngredientResponse;
@@ -215,5 +217,95 @@ class RecipeControllerTest {
         mockMvc.perform(delete("/api/recipes/9999"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.detail").value("Recipe 9999 was not found"));
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Error responses. @WebMvcTest picks up @RestControllerAdvice, and @Valid is evaluated by
+    // the real MVC pipeline, so these exercise the genuine path rather than a handler called
+    // directly.
+    // ---------------------------------------------------------------------------------------
+
+    @Test
+    void reportsValidationFailuresFieldByField() throws Exception {
+        String invalid = """
+                {
+                  "title": "   ",
+                  "instructions": "",
+                  "servings": 0,
+                  "difficulty": "EASY",
+                  "ingredients": []
+                }
+                """;
+
+        mockMvc.perform(post("/api/recipes").contentType(MediaType.APPLICATION_JSON).content(invalid))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentType("application/problem+json"))
+                .andExpect(jsonPath("$.type").value("urn:recipe-api:problem:validation-failed"))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.errors[*].field",
+                        Matchers.hasItems("title", "instructions", "servings", "ingredients",
+                                "prepMinutes", "cookMinutes")))
+                .andExpect(jsonPath("$.errors[?(@.field == 'ingredients')].message")
+                        .value("a recipe must have at least one ingredient"))
+                .andExpect(jsonPath("$.errors[?(@.field == 'servings')].message")
+                        .value("servings must be greater than zero"));
+    }
+
+    /** The @Valid cascade, seen from the outside: a bad line must be reported by its index. */
+    @Test
+    void reportsAViolationInsideAnIngredientLineByItsPath() throws Exception {
+        String badLine = """
+                {
+                  "title": "Pancakes",
+                  "instructions": "Mix. Fry.",
+                  "prepMinutes": 10,
+                  "cookMinutes": 15,
+                  "servings": 4,
+                  "difficulty": "EASY",
+                  "ingredients": [{"name": "  ", "quantity": -5, "unit": "GRAM"}],
+                  "categories": []
+                }
+                """;
+
+        mockMvc.perform(post("/api/recipes").contentType(MediaType.APPLICATION_JSON).content(badLine))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[*].field",
+                        Matchers.hasItems("ingredients[0].name", "ingredients[0].quantity")));
+    }
+
+    @Test
+    void reportsAnUnknownEnumConstantAsAMalformedBodyRatherThanAServerError() throws Exception {
+        String badEnum = VALID_BODY.replace("\"EASY\"", "\"TRIVIAL\"");
+
+        mockMvc.perform(post("/api/recipes").contentType(MediaType.APPLICATION_JSON).content(badEnum))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("urn:recipe-api:problem:malformed-body"));
+    }
+
+    @Test
+    void reportsBrokenJsonAsAMalformedBody() throws Exception {
+        mockMvc.perform(post("/api/recipes").contentType(MediaType.APPLICATION_JSON).content("{\"title\": "))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("urn:recipe-api:problem:malformed-body"))
+                .andExpect(jsonPath("$.detail").value(Matchers.not(Matchers.containsString("com.recipeapi"))));
+    }
+
+    @Test
+    void surfacesTheDuplicateIngredientRuleAsABadRequest() throws Exception {
+        when(recipes.create(any())).thenThrow(new DuplicateIngredientException("Flour"));
+
+        mockMvc.perform(post("/api/recipes").contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("urn:recipe-api:problem:duplicate-ingredient"))
+                .andExpect(jsonPath("$.detail").value(Matchers.containsString("Flour")));
+    }
+
+    @Test
+    void surfacesAnUnknownCategoryAsABadRequest() throws Exception {
+        when(recipes.create(any())).thenThrow(new UnknownCategoryException("Nope"));
+
+        mockMvc.perform(post("/api/recipes").contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("urn:recipe-api:problem:unknown-category"));
     }
 }
