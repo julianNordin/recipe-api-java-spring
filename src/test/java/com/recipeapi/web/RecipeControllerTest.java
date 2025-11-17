@@ -4,13 +4,18 @@ import com.recipeapi.domain.Difficulty;
 import com.recipeapi.domain.MeasurementUnit;
 import com.recipeapi.exception.NotFoundException;
 import com.recipeapi.service.RecipeService;
+import com.recipeapi.web.dto.RecipeIngredientRequest;
 import com.recipeapi.web.dto.RecipeIngredientResponse;
+import com.recipeapi.web.dto.RecipeRequest;
 import com.recipeapi.web.dto.RecipeResponse;
 import com.recipeapi.web.dto.RecipeSummaryResponse;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -18,10 +23,19 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -44,6 +58,23 @@ class RecipeControllerTest {
 
     @MockitoBean
     private RecipeService recipes;
+
+    @Captor
+    private ArgumentCaptor<RecipeRequest> submitted;
+
+    private static final String VALID_BODY = """
+            {
+              "title": "Pancakes",
+              "description": "Fluffy American pancakes",
+              "instructions": "Mix. Fry.",
+              "prepMinutes": 10,
+              "cookMinutes": 15,
+              "servings": 4,
+              "difficulty": "EASY",
+              "ingredients": [{"name": "Flour", "quantity": 300.00, "unit": "GRAM"}],
+              "categories": ["Breakfast"]
+            }
+            """;
 
     private static RecipeResponse pancakes() {
         return new RecipeResponse(1L, "Pancakes", "Fluffy American pancakes", "Mix. Fry.",
@@ -108,5 +139,81 @@ class RecipeControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(content().contentType("application/problem+json"))
                 .andExpect(jsonPath("$.type").value("urn:recipe-api:problem:invalid-parameter"));
+    }
+
+    @Test
+    void createsARecipeAndPointsAtItWithALocationHeader() throws Exception {
+        when(recipes.create(any())).thenReturn(pancakes());
+
+        mockMvc.perform(post("/api/recipes").contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
+                .andExpect(status().isCreated())
+                .andExpect(header().string("Location", "http://localhost/api/recipes/1"))
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.title").value("Pancakes"));
+    }
+
+    /**
+     * Proves the JSON actually binds onto the record, which nothing else here does. Every other
+     * test stubs the service with {@code any()}, so a payload that silently deserialised into
+     * nulls would still produce a green 201.
+     */
+    @Test
+    void bindsTheJsonBodyOntoTheRequestRecord() throws Exception {
+        when(recipes.create(any())).thenReturn(pancakes());
+
+        mockMvc.perform(post("/api/recipes").contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
+                .andExpect(status().isCreated());
+
+        verify(recipes).create(submitted.capture());
+        RecipeRequest request = submitted.getValue();
+
+        assertThat(request.title()).isEqualTo("Pancakes");
+        assertThat(request.servings()).isEqualTo(4);
+        assertThat(request.difficulty()).isEqualTo(Difficulty.EASY);
+        assertThat(request.categories()).containsExactly("Breakfast");
+        assertThat(request.ingredients())
+                .singleElement()
+                .satisfies(line -> {
+                    assertThat(line.name()).isEqualTo("Flour");
+                    assertThat(line.quantity()).isEqualByComparingTo("300.00");
+                    assertThat(line.unit()).isEqualTo(MeasurementUnit.GRAM);
+                });
+    }
+
+    @Test
+    void updatesARecipe() throws Exception {
+        when(recipes.update(eq(1L), any())).thenReturn(pancakes());
+
+        mockMvc.perform(put("/api/recipes/1").contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1));
+    }
+
+    @Test
+    void updatingAMissingRecipeIsANotFoundProblem() throws Exception {
+        when(recipes.update(anyLong(), any())).thenThrow(new NotFoundException("Recipe", 9999L));
+
+        mockMvc.perform(put("/api/recipes/9999").contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.type").value("urn:recipe-api:problem:not-found"));
+    }
+
+    /** 204 with an empty body - there is nothing meaningful to return once the recipe is gone. */
+    @Test
+    void deletesARecipeWithNoContent() throws Exception {
+        mockMvc.perform(delete("/api/recipes/1"))
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
+
+        verify(recipes).delete(1L);
+    }
+
+    @Test
+    void deletingAMissingRecipeIsANotFoundProblem() throws Exception {
+        doThrow(new NotFoundException("Recipe", 9999L)).when(recipes).delete(9999L);
+
+        mockMvc.perform(delete("/api/recipes/9999"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value("Recipe 9999 was not found"));
     }
 }
