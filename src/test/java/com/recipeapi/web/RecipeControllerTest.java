@@ -3,6 +3,7 @@ package com.recipeapi.web;
 import com.recipeapi.domain.Difficulty;
 import com.recipeapi.domain.MeasurementUnit;
 import com.recipeapi.exception.DuplicateIngredientException;
+import com.recipeapi.exception.InvalidSortException;
 import com.recipeapi.exception.NotFoundException;
 import com.recipeapi.exception.UnknownCategoryException;
 import com.recipeapi.service.RecipeService;
@@ -19,6 +20,7 @@ import org.mockito.Captor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -65,6 +67,9 @@ class RecipeControllerTest {
 
     @Captor
     private ArgumentCaptor<RecipeRequest> submitted;
+
+    @Captor
+    private ArgumentCaptor<Pageable> requestedPage;
 
     private static final String VALID_BODY = """
             {
@@ -310,5 +315,72 @@ class RecipeControllerTest {
         mockMvc.perform(post("/api/recipes").contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type").value("urn:recipe-api:problem:unknown-category"));
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Paging and sorting. What matters at this tier is that the query parameters are parsed and
+    // handed on intact - whether the SQL honours them is the repository's problem.
+    // ---------------------------------------------------------------------------------------
+
+    @Test
+    void parsesThePagingAndSortingParametersAndPassesThemOn() throws Exception {
+        when(recipes.findAll(any(Pageable.class)))
+                .thenReturn(new PagedResponse<>(List.of(), 1, 5, 0, 0, false, true));
+
+        mockMvc.perform(get("/api/recipes").param("page", "1").param("size", "5").param("sort", "title,desc"))
+                .andExpect(status().isOk());
+
+        verify(recipes).findAll(requestedPage.capture());
+        Pageable pageable = requestedPage.getValue();
+
+        assertThat(pageable.getPageNumber()).isEqualTo(1);
+        assertThat(pageable.getPageSize()).isEqualTo(5);
+        assertThat(pageable.getSort().getOrderFor("title")).isNotNull();
+        assertThat(pageable.getSort().getOrderFor("title").getDirection()).isEqualTo(Sort.Direction.DESC);
+    }
+
+    /** No parameters at all must still produce a deterministic, bounded page. */
+    @Test
+    void appliesTheDefaultPageSizeAndSortWhenNothingIsAsked() throws Exception {
+        when(recipes.findAll(any(Pageable.class)))
+                .thenReturn(new PagedResponse<>(List.of(), 0, 20, 0, 0, true, true));
+
+        mockMvc.perform(get("/api/recipes")).andExpect(status().isOk());
+
+        verify(recipes).findAll(requestedPage.capture());
+        Pageable pageable = requestedPage.getValue();
+
+        assertThat(pageable.getPageNumber()).isZero();
+        assertThat(pageable.getPageSize()).isEqualTo(20);
+        assertThat(pageable.getSort().getOrderFor("id")).isNotNull();
+    }
+
+    @Test
+    void returnsThePagingEnvelopeAlongsideTheContent() throws Exception {
+        when(recipes.findAll(any(Pageable.class)))
+                .thenReturn(new PagedResponse<>(List.of(), 1, 5, 12, 3, false, false));
+
+        mockMvc.perform(get("/api/recipes").param("page", "1").param("size", "5"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page").value(1))
+                .andExpect(jsonPath("$.size").value(5))
+                .andExpect(jsonPath("$.totalElements").value(12))
+                .andExpect(jsonPath("$.totalPages").value(3))
+                .andExpect(jsonPath("$.first").value(false))
+                .andExpect(jsonPath("$.last").value(false))
+                .andExpect(jsonPath("$.pageable").doesNotExist())
+                .andExpect(jsonPath("$.sort").doesNotExist());
+    }
+
+    @Test
+    void reportsAnUnsortablePropertyAsABadRequestRatherThanAServerError() throws Exception {
+        when(recipes.findAll(any(Pageable.class)))
+                .thenThrow(new InvalidSortException("DROP", List.of("id", "title")));
+
+        mockMvc.perform(get("/api/recipes").param("sort", "DROP"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentType("application/problem+json"))
+                .andExpect(jsonPath("$.type").value("urn:recipe-api:problem:invalid-sort"))
+                .andExpect(jsonPath("$.detail").value(Matchers.containsString("Cannot sort by 'DROP'")));
     }
 }
