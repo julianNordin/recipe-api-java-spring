@@ -6,6 +6,7 @@ import com.recipeapi.exception.DuplicateIngredientException;
 import com.recipeapi.exception.NotFoundException;
 import com.recipeapi.exception.UnknownCategoryException;
 import com.recipeapi.service.RecipeService;
+import com.recipeapi.web.dto.PagedResponse;
 import com.recipeapi.web.dto.RecipeIngredientRequest;
 import com.recipeapi.web.dto.RecipeIngredientResponse;
 import com.recipeapi.web.dto.RecipeRequest;
@@ -17,6 +18,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -90,19 +92,20 @@ class RecipeControllerTest {
 
     @Test
     void listsRecipesInTheSummaryShape() throws Exception {
-        when(recipes.findAll()).thenReturn(List.of(
-                new RecipeSummaryResponse(1L, "Pancakes", "Fluffy", 25, 4, Difficulty.EASY, List.of("Breakfast"))));
+        when(recipes.findAll(any(Pageable.class))).thenReturn(new PagedResponse<>(
+                List.of(new RecipeSummaryResponse(1L, "Pancakes", "Fluffy", 25, 4, Difficulty.EASY, List.of("Breakfast"))),
+                0, 20, 1, 1, true, true));
 
         mockMvc.perform(get("/api/recipes"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith("application/json"))
-                .andExpect(jsonPath("$", Matchers.hasSize(1)))
-                .andExpect(jsonPath("$[0].id").value(1))
-                .andExpect(jsonPath("$[0].title").value("Pancakes"))
-                .andExpect(jsonPath("$[0].totalMinutes").value(25))
-                .andExpect(jsonPath("$[0].categories[0]").value("Breakfast"))
-                .andExpect(jsonPath("$[0].instructions").doesNotExist())
-                .andExpect(jsonPath("$[0].ingredients").doesNotExist());
+                .andExpect(jsonPath("$.content", Matchers.hasSize(1)))
+                .andExpect(jsonPath("$.content[0].id").value(1))
+                .andExpect(jsonPath("$.content[0].title").value("Pancakes"))
+                .andExpect(jsonPath("$.content[0].totalMinutes").value(25))
+                .andExpect(jsonPath("$.content[0].categories[0]").value("Breakfast"))
+                .andExpect(jsonPath("$.content[0].instructions").doesNotExist())
+                .andExpect(jsonPath("$.content[0].ingredients").doesNotExist());
     }
 
     @Test

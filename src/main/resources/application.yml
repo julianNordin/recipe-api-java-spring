@@ -18,6 +18,16 @@ spring:
     # exactly the N+1 problems Phase 13 exists to find.
     open-in-view: false
 
+  data:
+    web:
+      pageable:
+        default-page-size: 20
+        # Hard ceiling. Without it, size=100000 is a one-request denial of service:
+        # the query returns and the whole result set is mapped into memory before
+        # anything is written out. Spring clamps larger values to this rather than
+        # rejecting them.
+        max-page-size: 100
+
   flyway:
     enabled: true
     locations: classpath:db/migration

@@ -1,10 +1,14 @@
 package com.recipeapi.web;
 
 import com.recipeapi.service.RecipeService;
+import com.recipeapi.web.dto.PagedResponse;
 import com.recipeapi.web.dto.RecipeRequest;
 import com.recipeapi.web.dto.RecipeResponse;
 import com.recipeapi.web.dto.RecipeSummaryResponse;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -19,7 +23,6 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.net.URI;
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/recipes")
@@ -31,9 +34,17 @@ public class RecipeController {
         this.recipes = recipes;
     }
 
+    /**
+     * Supports page, size and sort - for example sort=title,asc with page=1 and size=10.
+     *
+     * <p>The default sort is by id, so paging is deterministic. Without a total ordering the
+     * database may return rows in any order it likes, and the same row can appear on two
+     * different pages while another appears on none.
+     */
     @GetMapping
-    public List<RecipeSummaryResponse> list() {
-        return recipes.findAll();
+    public PagedResponse<RecipeSummaryResponse> list(
+            @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.ASC) Pageable pageable) {
+        return recipes.findAll(pageable);
     }
 
     /**

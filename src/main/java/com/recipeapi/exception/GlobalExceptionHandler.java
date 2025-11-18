@@ -52,6 +52,11 @@ public class GlobalExceptionHandler {
         return problem(HttpStatus.BAD_REQUEST, "Duplicate Ingredient", "duplicate-ingredient", exception.getMessage());
     }
 
+    @ExceptionHandler(InvalidSortException.class)
+    public ProblemDetail handleInvalidSort(InvalidSortException exception) {
+        return problem(HttpStatus.BAD_REQUEST, "Invalid Sort", "invalid-sort", exception.getMessage());
+    }
+
     /**
      * Bean-validation failures, reported field by field.
      *
