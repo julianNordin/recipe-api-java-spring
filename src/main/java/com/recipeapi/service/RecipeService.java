@@ -11,6 +11,7 @@ import com.recipeapi.repository.IngredientRepository;
 import com.recipeapi.repository.RecipeRepository;
 import com.recipeapi.repository.RecipeSpecifications;
 import com.recipeapi.web.dto.PagedResponse;
+import com.recipeapi.web.dto.RecipeFilter;
 import com.recipeapi.web.dto.RecipeIngredientRequest;
 import com.recipeapi.web.dto.RecipeRequest;
 import com.recipeapi.web.dto.RecipeResponse;
@@ -58,10 +59,19 @@ public class RecipeService {
      * The sort is validated here rather than in the controller, so every caller of this method is
      * protected rather than only the one that happens to arrive over HTTP.
      */
+    /**
+     * Every filter is independently optional and they compose with AND. An absent one contributes
+     * Specification.unrestricted(), so this reads the same however many were actually supplied -
+     * there is no branching on which combination arrived.
+     */
     @Transactional(readOnly = true)
-    public PagedResponse<RecipeSummaryResponse> findAll(String search, Pageable pageable) {
+    public PagedResponse<RecipeSummaryResponse> findAll(RecipeFilter filter, Pageable pageable) {
         Specification<Recipe> specification = Specification.allOf(
-                RecipeSpecifications.matchesText(search));
+                RecipeSpecifications.matchesText(filter.search()),
+                RecipeSpecifications.inCategory(filter.category()),
+                RecipeSpecifications.hasDifficulty(filter.difficulty()),
+                RecipeSpecifications.totalMinutesAtMost(filter.maxMinutes()),
+                RecipeSpecifications.usesIngredient(filter.ingredient()));
 
         return PagedResponse.from(
                 recipes.findAll(specification, RecipeSorts.validate(pageable)).map(mapper::toSummary));

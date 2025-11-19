@@ -1,5 +1,7 @@
 package com.recipeapi.exception;
 
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -50,6 +52,39 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DuplicateIngredientException.class)
     public ProblemDetail handleDuplicateIngredient(DuplicateIngredientException exception) {
         return problem(HttpStatus.BAD_REQUEST, "Duplicate Ingredient", "duplicate-ingredient", exception.getMessage());
+    }
+
+    /**
+     * Constraints on query parameters, e.g. {@code ?maxMinutes=-5}.
+     *
+     * <p>A different exception from the request-body case: parameter constraints are checked by
+     * the @Validated proxy and raise ConstraintViolationException, not
+     * MethodArgumentNotValidException. Handling only the latter leaves this one falling through
+     * to a 500.
+     *
+     * <p>The property path is trimmed to its last segment, because the raw value reads
+     * {@code list.maxMinutes} - the method name is an implementation detail the caller cannot act
+     * on.
+     */
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ProblemDetail handleParameterViolation(ConstraintViolationException exception) {
+        List<Map<String, String>> errors = exception.getConstraintViolations().stream()
+                .map(violation -> Map.of(
+                        "parameter", lastSegmentOf(violation),
+                        "message", violation.getMessage()))
+                .sorted(Comparator.comparing(error -> error.get("parameter")))
+                .toList();
+
+        ProblemDetail problem = problem(HttpStatus.BAD_REQUEST, "Invalid Parameter", "invalid-parameter",
+                "One or more query parameters are invalid. See 'errors' for details.");
+        problem.setProperty("errors", errors);
+        return problem;
+    }
+
+    private static String lastSegmentOf(ConstraintViolation<?> violation) {
+        String path = violation.getPropertyPath().toString();
+        int lastDot = path.lastIndexOf('.');
+        return lastDot < 0 ? path : path.substring(lastDot + 1);
     }
 
     @ExceptionHandler(InvalidSortException.class)

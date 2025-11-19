@@ -1,11 +1,14 @@
 package com.recipeapi.web;
 
 import com.recipeapi.service.RecipeService;
+import com.recipeapi.domain.Difficulty;
 import com.recipeapi.web.dto.PagedResponse;
+import com.recipeapi.web.dto.RecipeFilter;
 import com.recipeapi.web.dto.RecipeRequest;
 import com.recipeapi.web.dto.RecipeResponse;
 import com.recipeapi.web.dto.RecipeSummaryResponse;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
@@ -20,12 +23,14 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.net.URI;
 
 @RestController
+@Validated
 @RequestMapping("/api/recipes")
 public class RecipeController {
 
@@ -45,8 +50,12 @@ public class RecipeController {
     @GetMapping
     public PagedResponse<RecipeSummaryResponse> list(
             @RequestParam(required = false) String search,
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) Difficulty difficulty,
+            @RequestParam(required = false) @Positive Integer maxMinutes,
+            @RequestParam(required = false) String ingredient,
             @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.ASC) Pageable pageable) {
-        return recipes.findAll(search, pageable);
+        return recipes.findAll(new RecipeFilter(search, category, difficulty, maxMinutes, ingredient), pageable);
     }
 
     /**
