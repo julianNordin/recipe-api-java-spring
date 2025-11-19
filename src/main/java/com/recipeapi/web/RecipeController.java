@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
@@ -43,8 +44,9 @@ public class RecipeController {
      */
     @GetMapping
     public PagedResponse<RecipeSummaryResponse> list(
+            @RequestParam(required = false) String search,
             @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.ASC) Pageable pageable) {
-        return recipes.findAll(pageable);
+        return recipes.findAll(search, pageable);
     }
 
     /**

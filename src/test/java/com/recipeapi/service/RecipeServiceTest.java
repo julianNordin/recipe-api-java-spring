@@ -238,7 +238,7 @@ class RecipeServiceTest {
 
         assertThatThrownBy(() -> service.delete(404L)).isInstanceOf(NotFoundException.class);
 
-        verify(recipes, never()).delete(any());
+        verify(recipes, never()).delete(any(Recipe.class));
         verify(recipes, never()).deleteById(anyLong());
     }
 

@@ -97,7 +97,7 @@ class RecipeControllerTest {
 
     @Test
     void listsRecipesInTheSummaryShape() throws Exception {
-        when(recipes.findAll(any(Pageable.class))).thenReturn(new PagedResponse<>(
+        when(recipes.findAll(any(), any(Pageable.class))).thenReturn(new PagedResponse<>(
                 List.of(new RecipeSummaryResponse(1L, "Pancakes", "Fluffy", 25, 4, Difficulty.EASY, List.of("Breakfast"))),
                 0, 20, 1, 1, true, true));
 
@@ -324,13 +324,13 @@ class RecipeControllerTest {
 
     @Test
     void parsesThePagingAndSortingParametersAndPassesThemOn() throws Exception {
-        when(recipes.findAll(any(Pageable.class)))
+        when(recipes.findAll(any(), any(Pageable.class)))
                 .thenReturn(new PagedResponse<>(List.of(), 1, 5, 0, 0, false, true));
 
         mockMvc.perform(get("/api/recipes").param("page", "1").param("size", "5").param("sort", "title,desc"))
                 .andExpect(status().isOk());
 
-        verify(recipes).findAll(requestedPage.capture());
+        verify(recipes).findAll(any(), requestedPage.capture());
         Pageable pageable = requestedPage.getValue();
 
         assertThat(pageable.getPageNumber()).isEqualTo(1);
@@ -342,12 +342,12 @@ class RecipeControllerTest {
     /** No parameters at all must still produce a deterministic, bounded page. */
     @Test
     void appliesTheDefaultPageSizeAndSortWhenNothingIsAsked() throws Exception {
-        when(recipes.findAll(any(Pageable.class)))
+        when(recipes.findAll(any(), any(Pageable.class)))
                 .thenReturn(new PagedResponse<>(List.of(), 0, 20, 0, 0, true, true));
 
         mockMvc.perform(get("/api/recipes")).andExpect(status().isOk());
 
-        verify(recipes).findAll(requestedPage.capture());
+        verify(recipes).findAll(any(), requestedPage.capture());
         Pageable pageable = requestedPage.getValue();
 
         assertThat(pageable.getPageNumber()).isZero();
@@ -357,7 +357,7 @@ class RecipeControllerTest {
 
     @Test
     void returnsThePagingEnvelopeAlongsideTheContent() throws Exception {
-        when(recipes.findAll(any(Pageable.class)))
+        when(recipes.findAll(any(), any(Pageable.class)))
                 .thenReturn(new PagedResponse<>(List.of(), 1, 5, 12, 3, false, false));
 
         mockMvc.perform(get("/api/recipes").param("page", "1").param("size", "5"))
@@ -374,7 +374,7 @@ class RecipeControllerTest {
 
     @Test
     void reportsAnUnsortablePropertyAsABadRequestRatherThanAServerError() throws Exception {
-        when(recipes.findAll(any(Pageable.class)))
+        when(recipes.findAll(any(), any(Pageable.class)))
                 .thenThrow(new InvalidSortException("DROP", List.of("id", "title")));
 
         mockMvc.perform(get("/api/recipes").param("sort", "DROP"))

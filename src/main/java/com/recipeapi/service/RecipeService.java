@@ -9,6 +9,7 @@ import com.recipeapi.exception.UnknownCategoryException;
 import com.recipeapi.repository.CategoryRepository;
 import com.recipeapi.repository.IngredientRepository;
 import com.recipeapi.repository.RecipeRepository;
+import com.recipeapi.repository.RecipeSpecifications;
 import com.recipeapi.web.dto.PagedResponse;
 import com.recipeapi.web.dto.RecipeIngredientRequest;
 import com.recipeapi.web.dto.RecipeRequest;
@@ -17,6 +18,7 @@ import com.recipeapi.web.dto.RecipeSummaryResponse;
 import com.recipeapi.web.mapper.RecipeMapper;
 import com.recipeapi.web.support.RecipeSorts;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -57,8 +59,12 @@ public class RecipeService {
      * protected rather than only the one that happens to arrive over HTTP.
      */
     @Transactional(readOnly = true)
-    public PagedResponse<RecipeSummaryResponse> findAll(Pageable pageable) {
-        return PagedResponse.from(recipes.findAll(RecipeSorts.validate(pageable)).map(mapper::toSummary));
+    public PagedResponse<RecipeSummaryResponse> findAll(String search, Pageable pageable) {
+        Specification<Recipe> specification = Specification.allOf(
+                RecipeSpecifications.matchesText(search));
+
+        return PagedResponse.from(
+                recipes.findAll(specification, RecipeSorts.validate(pageable)).map(mapper::toSummary));
     }
 
     @Transactional(readOnly = true)
