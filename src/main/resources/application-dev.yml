@@ -8,7 +8,12 @@ spring:
     properties:
       hibernate:
         format_sql: true
+        # Prints a summary after every session: statements prepared, collections fetched, time
+        # spent. Reading SQL logs tells you what ran; this tells you how MANY times, which is the
+        # only way to see an N+1 for what it is rather than as "a lot of similar-looking queries".
+        generate_statistics: true
 
 logging:
   level:
     org.hibernate.SQL: DEBUG
+    org.hibernate.stat: DEBUG
