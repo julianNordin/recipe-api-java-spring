@@ -212,9 +212,14 @@ class RecipeServiceTest {
     // rejects the request only after persisting half of it is not much of a rule.
     // ---------------------------------------------------------------------------------------
 
+    /**
+     * Reads go through findWithAssociationsById, not findById - the detail endpoint needs the
+     * entity graph. Stubbing the wrong one here would have passed silently before Mockito's
+     * strict stubbing flagged the leftover stub.
+     */
     @Test
     void findByIdReportsAMissingRecipeAsNotFound() {
-        when(recipes.findById(404L)).thenReturn(Optional.empty());
+        when(recipes.findWithAssociationsById(404L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.findById(404L))
                 .isInstanceOf(NotFoundException.class)

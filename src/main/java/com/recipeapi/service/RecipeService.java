@@ -18,6 +18,7 @@ import com.recipeapi.web.dto.RecipeResponse;
 import com.recipeapi.web.dto.RecipeSummaryResponse;
 import com.recipeapi.web.mapper.RecipeMapper;
 import com.recipeapi.web.support.RecipeSorts;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -73,13 +74,35 @@ public class RecipeService {
                 RecipeSpecifications.totalMinutesAtMost(filter.maxMinutes()),
                 RecipeSpecifications.usesIngredient(filter.ingredient()));
 
-        return PagedResponse.from(
-                recipes.findAll(specification, RecipeSorts.validate(pageable)).map(mapper::toSummary));
+        Page<Recipe> page = recipes.findAll(specification, RecipeSorts.validate(pageable));
+
+        // Page first, then initialise. Putting an @EntityGraph on the paged query instead makes
+        // Hibernate abandon SQL paging and warn
+        //   HHH90003004: firstResult/maxResults specified with collection fetch; applying in memory
+        // meaning it loads every matching row and throws all but one page away. Invisible with
+        // five recipes and fatal with fifty thousand.
+        initialiseCategories(page.getContent());
+
+        return PagedResponse.from(page.map(mapper::toSummary));
+    }
+
+    /**
+     * Populates the categories of an already-paged set of recipes in one further query.
+     *
+     * <p>Only the categories: the summary shape has no ingredient lines, so fetching them would
+     * be work nobody asked for. The detail endpoint fetches both.
+     */
+    private void initialiseCategories(List<Recipe> page) {
+        if (page.isEmpty()) {
+            return;
+        }
+        recipes.findWithCategoriesByIdIn(page.stream().map(Recipe::getId).toList());
     }
 
     @Transactional(readOnly = true)
     public RecipeResponse findById(Long id) {
-        return mapper.toResponse(require(id));
+        return mapper.toResponse(recipes.findWithAssociationsById(id)
+                .orElseThrow(() -> new NotFoundException("Recipe", id)));
     }
 
     @Transactional

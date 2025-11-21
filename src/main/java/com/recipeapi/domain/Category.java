@@ -9,8 +9,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 /**
  * A label a recipe can be filed under, e.g. "Breakfast" or "Vegetarian".
@@ -36,7 +36,7 @@ public class Category {
      * including the categories that have none, which a join from the Recipe side cannot see.
      */
     @ManyToMany(mappedBy = "categories", fetch = FetchType.LAZY)
-    private List<Recipe> recipes = new ArrayList<>();
+    private Set<Recipe> recipes = new LinkedHashSet<>();
 
     /** Required by JPA. Not for application use. */
     protected Category() {
@@ -62,7 +62,7 @@ public class Category {
      * Mutable by design: {@link Recipe#addCategory} writes through this to keep both sides in
      * step. Application code should go through {@code Recipe}, not here.
      */
-    List<Recipe> getRecipes() {
+    Set<Recipe> getRecipes() {
         return recipes;
     }
 

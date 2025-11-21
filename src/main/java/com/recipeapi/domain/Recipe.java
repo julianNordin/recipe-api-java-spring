@@ -20,7 +20,9 @@ import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * A recipe: what to cook, how long it takes and how hard it is.
@@ -83,6 +85,11 @@ public class Recipe {
      *
      * <p>No cascade. Categories are shared reference data - cascading a recipe delete into them
      * would delete "Breakfast" out from under every other recipe using it.
+     *
+     * <p>A Set, not a List. Hibernate treats an unordered List as a "bag" and refuses to fetch
+     * two of them in one query - MultipleBagFetchException - which blocks loading this and the
+     * ingredient lines together. LinkedHashSet rather than HashSet so iteration order is at least
+     * stable within a session.
      */
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
@@ -90,7 +97,7 @@ public class Recipe {
             joinColumns = @JoinColumn(name = "recipe_id"),
             inverseJoinColumns = @JoinColumn(name = "category_id")
     )
-    private List<Category> categories = new ArrayList<>();
+    private Set<Category> categories = new LinkedHashSet<>();
 
     /**
      * The recipe's ingredient lines. Unlike categories these <em>are</em> owned by the recipe:
@@ -98,10 +105,12 @@ public class Recipe {
      *
      * <p>Hence {@code cascade = ALL} plus {@code orphanRemoval = true} - saving a recipe saves
      * its lines, deleting a recipe deletes them, and dropping a line from this collection
-     * deletes that row. Phase 07's PUT relies on exactly that to replace an ingredient list.
+     * deletes that row. The PUT endpoint relies on exactly that to replace an ingredient list.
+     *
+     * <p>A Set for the same reason as the categories above: two bags cannot be fetched together.
      */
     @OneToMany(mappedBy = "recipe", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    private List<RecipeIngredient> ingredients = new ArrayList<>();
+    private Set<RecipeIngredient> ingredients = new LinkedHashSet<>();
 
     /** Required by JPA. Not for application use. */
     protected Recipe() {
@@ -142,8 +151,7 @@ public class Recipe {
      * persistence context, which serves the stale in-memory collection rather than re-querying.
      */
     public void addCategory(Category category) {
-        if (!categories.contains(category)) {
-            categories.add(category);
+        if (categories.add(category)) {
             category.getRecipes().add(this);
         }
     }
@@ -267,7 +275,10 @@ public class Recipe {
         return updatedAt;
     }
 
-    /** Unmodifiable on purpose: mutate through {@link #addCategory} / {@link #removeCategory}. */
+    /**
+     * Returned as an unmodifiable List rather than the underlying Set: callers get a stable
+     * iteration order and cannot mutate the association behind {@link #addCategory}.
+     */
     public List<Category> getCategories() {
         return List.copyOf(categories);
     }
