@@ -23,18 +23,18 @@ any serving count on the fly.
 ## Roadmap
 
 - [x] **01** · Scaffold, Maven & toolchain
-- [ ] **02** · Domain entities
-- [ ] **03** · Relationships & the association entity
-- [ ] **04** · Dev Postgres in Compose + Flyway schema
-- [ ] **05** · Repositories + first Testcontainers test
-- [ ] **06** · DTOs, mapper, read endpoints
-- [ ] **07** · Write endpoints + service layer
-- [ ] **08** · Validation + RFC 9457 problem details
-- [ ] **09** · Unit tests: JUnit 5 + Mockito
-- [ ] **10** · Controller tests with `@WebMvcTest`
-- [ ] **11** · Pagination & sorting
-- [ ] **12** · Search & filtering with Specifications
-- [ ] **13** · Fetch strategy: N+1 and friends
+- [x] **02** · Domain entities
+- [x] **03** · Relationships & the association entity
+- [x] **04** · Dev Postgres in Compose + Flyway schema
+- [x] **05** · Repositories + first Testcontainers test
+- [x] **06** · DTOs, mapper, read endpoints
+- [x] **07** · Write endpoints + service layer
+- [x] **08** · Validation + RFC 9457 problem details
+- [x] **09** · Unit tests: JUnit 5 + Mockito
+- [x] **10** · Controller tests with `@WebMvcTest`
+- [x] **11** · Pagination & sorting
+- [x] **12** · Search & filtering with Specifications
+- [x] **13** · Fetch strategy: N+1 and friends
 - [ ] **14** · Integration tests end to end
 - [ ] **15** · Ingredients, categories & servings scaling
 - [ ] **16** · OpenAPI / Swagger UI
