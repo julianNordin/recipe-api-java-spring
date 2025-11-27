@@ -3,6 +3,7 @@ package com.recipeapi.integration;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.recipeapi.support.AbstractPostgresTest;
+import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -34,8 +35,14 @@ import static org.assertj.core.api.Assertions.assertThat;
  * rather than bound to the response records. Binding would assert against Jackson's round trip
  * of this project's own types, which is exactly the thing that cannot detect a field quietly
  * disappearing from - or appearing in - the published contract.
+ *
+ * <p>{@code clean-disabled=false} is declared here rather than in any {@code application.yml},
+ * so the ability to drop the schema exists only for classes that extend this one. Putting it in
+ * a configuration file - even a test-scoped one - would arm it for the whole application.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(
+        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = "spring.flyway.clean-disabled=false")
 abstract class AbstractIntegrationTest extends AbstractPostgresTest {
 
     @Autowired
@@ -47,22 +54,45 @@ abstract class AbstractIntegrationTest extends AbstractPostgresTest {
     @Autowired
     private DataSource dataSource;
 
+    @Autowired
+    private Flyway flyway;
+
     /**
-     * Refuses to run unless the application under test is pointed at the throwaway container.
+     * Puts the database back to its migrated state before every test.
      *
-     * <p>Unlike the {@code @DataJpaTest} slices, a {@code @SpringBootTest} loads the real
-     * {@code application.yml}, whose datasource URL is the developer's Compose database on
-     * localhost:5432. Nothing but {@code @ServiceConnection} stands between these tests and that
-     * database, and these tests write. If the override ever stops applying, the failure has to
-     * be this assertion rather than a developer noticing their data has moved.
+     * <p>This tier commits. The server handles each request on its own thread inside its own
+     * transaction, so a {@code @Transactional} test method - the reflex that rolls a slice test
+     * back - shares nothing with the work it is meant to be undoing and rolls back an empty
+     * transaction while every write survives. Left alone, three recipes survive one test class
+     * and reach the next, and assertions start depending on the order the suite happened to run
+     * in.
+     *
+     * <p>Flyway's own clean plus migrate rather than a hand-written {@code TRUNCATE}: the tests
+     * lean on the reference data V2 seeds, so a truncate would have to preserve some tables,
+     * restart some sequences and re-insert the seed - three chances for the reset to drift away
+     * from the migrations. Clean and migrate cannot drift, because it *is* the migrations. It
+     * runs per test rather than per class so that no test can be made to pass by the test that
+     * ran before it.
+     *
+     * <p>Cleaning is the reason for the guard below, which runs first and refuses to continue
+     * unless the application under test is pointed at the throwaway container. A
+     * {@code @SpringBootTest} loads the real {@code application.yml}, whose datasource is the
+     * developer's Compose database on localhost:5432; the only thing redirecting it is
+     * {@code @ServiceConnection}. Dropping the wrong schema is not a failure anyone should have
+     * to diagnose after the fact.
+     *
+     * <p>JUnit runs a superclass {@code @BeforeEach} before the subclass's, which is what lets a
+     * subclass seed its fixture in one of its own and know the database was empty first.
      */
     @BeforeEach
-    void assertPointedAtTheThrowawayContainer() throws SQLException {
+    void resetTheDatabase() throws SQLException {
         try (Connection connection = dataSource.getConnection()) {
             assertThat(connection.getMetaData().getURL())
                     .as("integration tests must run against the Testcontainers Postgres, not a real database")
                     .contains(":" + POSTGRES.getFirstMappedPort() + "/");
         }
+        flyway.clean();
+        flyway.migrate();
     }
 
     protected ResponseEntity<String> get(String path) {
