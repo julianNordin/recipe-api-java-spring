@@ -72,6 +72,22 @@
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 			</plugin>
+
+			<!--
+				Surefire runs *Test classes in the test phase; Failsafe runs *IT classes in the
+				integration-test phase. Splitting them is what keeps the fast tiers fast: the
+				Mockito and @WebMvcTest suites never wait on a Spring Boot context or a Postgres
+				container, and a failing unit test stops the build before the slow tier starts.
+
+				No version, no executions and no configuration here: spring-boot-starter-parent
+				already binds the integration-test and verify goals in its pluginManagement, and
+				sets classesDirectory to target/classes so Failsafe tests the plain classes rather
+				than the fat jar spring-boot-maven-plugin repackages.
+			-->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-failsafe-plugin</artifactId>
+			</plugin>
 		</plugins>
 	</build>
 
