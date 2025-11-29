@@ -115,7 +115,7 @@ class RecipeControllerTest {
 
     @Test
     void returnsTheFullShapeForASingleRecipe() throws Exception {
-        when(recipes.findById(1L)).thenReturn(pancakes());
+        when(recipes.findById(1L, null)).thenReturn(pancakes());
 
         mockMvc.perform(get("/api/recipes/1"))
                 .andExpect(status().isOk())
@@ -129,9 +129,23 @@ class RecipeControllerTest {
                 .andExpect(jsonPath("$.createdAt").value("2025-11-17T10:00:00Z"));
     }
 
+    /**
+     * The stub above requires a null servings, which already pins "absent means as written". This
+     * pins the other half: the parameter binds to the value asked for rather than being dropped.
+     * Every other test of this endpoint would stay green if the controller ignored it entirely.
+     */
+    @Test
+    void passesTheRequestedServingsThroughToTheService() throws Exception {
+        when(recipes.findById(1L, 6)).thenReturn(pancakes());
+
+        mockMvc.perform(get("/api/recipes/1?servings=6")).andExpect(status().isOk());
+
+        verify(recipes).findById(1L, 6);
+    }
+
     @Test
     void reportsAMissingRecipeAsAProblemDetail() throws Exception {
-        when(recipes.findById(anyLong())).thenThrow(new NotFoundException("Recipe", 9999L));
+        when(recipes.findById(anyLong(), any())).thenThrow(new NotFoundException("Recipe", 9999L));
 
         mockMvc.perform(get("/api/recipes/9999"))
                 .andExpect(status().isNotFound())

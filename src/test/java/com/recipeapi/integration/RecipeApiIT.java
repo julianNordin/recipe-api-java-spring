@@ -209,6 +209,61 @@ class RecipeApiIT extends AbstractIntegrationTest {
         assertThat(ingredientNamed(keeper, "Flour").get("ingredientId").asLong()).isEqualTo(sharedIngredientId);
     }
 
+    /**
+     * Scaling, after the quantity has been through the database.
+     *
+     * <p>{@code ServingsScalingTest} covers the arithmetic on BigDecimals the test itself built.
+     * What only this tier can say is that the number survives the round trip - Java BigDecimal to
+     * {@code numeric(10,2)} and back, then scaled, then serialised - and comes out at the
+     * precision the schema actually stores rather than whatever the driver felt like returning.
+     *
+     * <p>Three servings into two ingredients, so nothing divides evenly: 260 to one serving is
+     * 86.67, which an implementation that rounded the ratio first would report as 85.80.
+     */
+    @Test
+    void scalesQuantitiesThatHaveBeenThroughThePostgresNumericColumn() {
+        long id = body(post("/api/recipes", """
+                {
+                  "title": "Belgian Waffles",
+                  "instructions": "Batter, iron, wait.",
+                  "prepMinutes": 10, "cookMinutes": 20, "servings": 3, "difficulty": "MEDIUM",
+                  "ingredients": [
+                    {"name": "Flour", "quantity": 260, "unit": "GRAM"},
+                    {"name": "Egg", "quantity": 2, "unit": "PIECE"}
+                  ],
+                  "categories": ["Breakfast"]
+                }""")).get("id").asLong();
+
+        JsonNode single = body(get("/api/recipes/" + id + "?servings=1"));
+        assertThat(single.get("servings").asInt()).isEqualTo(1);
+        assertThat(single.get("ingredients").get(0).get("quantity").decimalValue())
+                .isEqualByComparingTo("86.67");
+        assertThat(single.get("ingredients").get(1).get("quantity").decimalValue())
+                .isEqualByComparingTo("0.67");
+
+        // Times describe the cooking, not the quantity, and must survive untouched.
+        assertThat(single.get("totalMinutes").asInt()).isEqualTo(30);
+
+        // Asking for the servings it already has returns it exactly as written, and nothing was
+        // written back - the next plain read still says three.
+        JsonNode asWritten = body(get("/api/recipes/" + id));
+        assertThat(asWritten.get("servings").asInt()).isEqualTo(3);
+        assertThat(asWritten.get("ingredients").get(0).get("quantity").decimalValue())
+                .isEqualByComparingTo("260.00");
+    }
+
+    @Test
+    void rejectsAServingsCountItWouldRefuseToStore() {
+        long id = body(post("/api/recipes", PANCAKES)).get("id").asLong();
+
+        assertThat(get("/api/recipes/" + id + "?servings=0").getStatusCode())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(get("/api/recipes/" + id + "?servings=101").getStatusCode())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(body(get("/api/recipes/" + id + "?servings=0")).get("errors")
+                .findValuesAsText("parameter")).containsExactly("servings");
+    }
+
     private JsonNode ingredientNamed(long recipeId, String name) {
         JsonNode lines = body(get("/api/recipes/" + recipeId)).get("ingredients");
         for (JsonNode line : lines) {
