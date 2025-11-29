@@ -36,7 +36,7 @@ any serving count on the fly.
 - [x] **12** · Search & filtering with Specifications
 - [x] **13** · Fetch strategy: N+1 and friends
 - [x] **14** · Integration tests end to end
-- [ ] **15** · Ingredients, categories & servings scaling
+- [x] **15** · Ingredients, categories & servings scaling
 - [ ] **16** · OpenAPI / Swagger UI
 - [ ] **17** · GitHub Actions CI
 - [ ] **18** · Refactor, actuator, README, `v1.0`
