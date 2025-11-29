@@ -8,6 +8,7 @@ import com.recipeapi.web.dto.RecipeRequest;
 import com.recipeapi.web.dto.RecipeResponse;
 import com.recipeapi.web.dto.RecipeSummaryResponse;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Positive;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -73,9 +74,20 @@ public class RecipeController {
         return ResponseEntity.created(location).body(created);
     }
 
+    /**
+     * {@code ?servings=6} restates every ingredient quantity for that many servings.
+     *
+     * <p>A read, not an edit: the stored recipe is untouched, and omitting the parameter returns
+     * it as written. The bounds mirror the ones on the field itself, so the API cannot be asked
+     * to scale to a number it would refuse to store.
+     */
     @GetMapping("/{id}")
-    public RecipeResponse byId(@PathVariable Long id) {
-        return recipes.findById(id);
+    public RecipeResponse byId(
+            @PathVariable Long id,
+            @RequestParam(required = false)
+            @Positive(message = "servings must be greater than zero")
+            @Max(value = 100, message = "servings cannot exceed 100") Integer servings) {
+        return recipes.findById(id, servings);
     }
 
     @PutMapping("/{id}")

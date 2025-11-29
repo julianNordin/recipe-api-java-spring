@@ -101,8 +101,21 @@ public class RecipeService {
 
     @Transactional(readOnly = true)
     public RecipeResponse findById(Long id) {
-        return mapper.toResponse(recipes.findWithAssociationsById(id)
-                .orElseThrow(() -> new NotFoundException("Recipe", id)));
+        return findById(id, null);
+    }
+
+    /**
+     * The recipe, optionally restated for a different number of servings.
+     *
+     * <p>A null {@code servings} means "as written", which the mapper expresses as scaling to the
+     * number the recipe already serves - an exact no-op rather than a second code path. Nothing
+     * is written: this is a read that presents the same row differently.
+     */
+    @Transactional(readOnly = true)
+    public RecipeResponse findById(Long id, Integer servings) {
+        Recipe recipe = recipes.findWithAssociationsById(id)
+                .orElseThrow(() -> new NotFoundException("Recipe", id));
+        return mapper.toResponse(recipe, servings == null ? recipe.getServings() : servings);
     }
 
     @Transactional
