@@ -55,6 +55,20 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * 409 rather than 400: the request is well formed and the ingredient exists. What it
+     * conflicts with is other data that also exists, which is precisely what 409 is for.
+     */
+    @ExceptionHandler(IngredientInUseException.class)
+    public ProblemDetail handleIngredientInUse(IngredientInUseException exception) {
+        return problem(HttpStatus.CONFLICT, "Ingredient In Use", "ingredient-in-use", exception.getMessage());
+    }
+
+    @ExceptionHandler(IngredientAlreadyExistsException.class)
+    public ProblemDetail handleIngredientAlreadyExists(IngredientAlreadyExistsException exception) {
+        return problem(HttpStatus.CONFLICT, "Ingredient Already Exists", "ingredient-exists", exception.getMessage());
+    }
+
+    /**
      * Constraints on query parameters, e.g. {@code ?maxMinutes=-5}.
      *
      * <p>A different exception from the request-body case: parameter constraints are checked by
