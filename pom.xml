@@ -44,6 +44,18 @@
 			<scope>runtime</scope>
 		</dependency>
 
+		<!--
+			The one dependency in this pom with an explicit version. Everything else is managed by
+			the Spring Boot BOM; springdoc is not in it, so the pairing has to be pinned by hand.
+			2.9.0 is the release built against Spring Boot 3.5.x. It bundles the Swagger UI webjar,
+			so the UI is served out of the jar and needs no network at runtime.
+		-->
+		<dependency>
+			<groupId>org.springdoc</groupId>
+			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+			<version>2.9.0</version>
+		</dependency>
+
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>

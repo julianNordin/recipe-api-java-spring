@@ -31,3 +31,20 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+
+# The spec is generated from the controllers and the records, so it cannot drift from the code.
+# Both paths are springdoc's defaults; they are written out because they are public URLs this
+# project's README points at, and a default that moves in a future version would move them.
+#
+# Nothing here reaches the network: springdoc-openapi-starter-webmvc-ui bundles the
+# org.webjars:swagger-ui assets, so the page and every script it loads come out of the jar.
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    # Alphabetical rather than declaration order, so the page reads the same after any
+    # rearranging of the controllers.
+    operations-sorter: alpha
+    tags-sorter: alpha
+    display-request-duration: true
