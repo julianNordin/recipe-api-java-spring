@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Superseded pull-request runs are cancelled; pushes to main are not. A PR only ever needs a
+# verdict on its newest commit, but a red commit on main has to stay visible even if something
+# else lands a minute later - cancelling that run would leave the failure with no result at all.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Least privilege. This workflow reads the repository and writes nothing back, so the default
+# write-capable token would be strictly more access than the job can justify.
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: ubuntu-latest
+    # The integration tier starts Docker containers. Without a ceiling, one that never becomes
+    # healthy hangs the job until GitHub's six-hour default gives up.
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          # Keys off the pom, so a dependency change invalidates it and nothing else does.
+          cache: maven
+
+      # Everything in one command, deliberately: ./mvnw verify is what a developer runs locally,
+      # so CI cannot pass on a build nobody can reproduce. Surefire runs the unit, slice and
+      # repository tests, then Failsafe runs the integration tests - and a red unit test stops
+      # the job before the slow tier starts.
+      #
+      # No services block and no Docker setup step: Testcontainers finds the Docker daemon that
+      # ubuntu-latest already has, and starts the exact postgres:16-alpine the tests ask for.
+      #
+      # No chmod +x mvnw either. It is committed 100755, and adding a chmod here would paper over
+      # the one mistake that check exists to catch.
+      - name: Build and run every test tier
+        run: ./mvnw -B -ntp verify
+
+      # if: always() - the reports are worth having precisely when the build failed.
+      - name: Upload the test reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-reports
+          path: |
+            target/surefire-reports/
+            target/failsafe-reports/
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Summarise the test tiers
+        if: always()
+        run: python3 .github/scripts/test-summary.py >> "$GITHUB_STEP_SUMMARY"
