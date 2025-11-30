@@ -7,10 +7,10 @@ import com.recipeapi.web.dto.RecipeFilter;
 import com.recipeapi.web.dto.RecipeRequest;
 import com.recipeapi.web.dto.RecipeResponse;
 import com.recipeapi.web.dto.RecipeSummaryResponse;
+import com.recipeapi.web.support.Created;
+import com.recipeapi.web.support.ProblemResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -21,7 +21,6 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -34,9 +33,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
-
-import java.net.URI;
 
 @RestController
 @Validated
@@ -65,10 +61,8 @@ public class RecipeController {
                     shape omits instructions and ingredient lines - fetch a single recipe for \
                     those. Page size is capped at 100.""")
     @ApiResponse(responseCode = "200", description = "A page of matching recipes")
-    @ApiResponse(responseCode = "400", description =
-            "An unsortable sort property, or a filter value that is not valid",
-            content = @Content(mediaType = "application/problem+json",
-                    schema = @Schema(implementation = ProblemDetail.class)))
+    @ProblemResponse(responseCode = "400",
+            description = "An unsortable sort property, or a filter value that is not valid")
     @GetMapping
     public PagedResponse<RecipeSummaryResponse> list(
             @Parameter(description = "Case-insensitive substring of the title or description")
@@ -96,18 +90,12 @@ public class RecipeController {
                     must already exist. The response carries the generated id and timestamps, so \
                     no follow-up GET is needed.""")
     @ApiResponse(responseCode = "201", description = "Created; Location points at the new recipe")
-    @ApiResponse(responseCode = "400", description =
-            "Validation failed, a category does not exist, or an ingredient is listed twice",
-            content = @Content(mediaType = "application/problem+json",
-                    schema = @Schema(implementation = ProblemDetail.class)))
+    @ProblemResponse(responseCode = "400",
+            description = "Validation failed, a category does not exist, or an ingredient is listed twice")
     @PostMapping
     public ResponseEntity<RecipeResponse> create(@Valid @RequestBody RecipeRequest request) {
         RecipeResponse created = recipes.create(request);
-        URI location = ServletUriComponentsBuilder.fromCurrentRequest()
-                .path("/{id}")
-                .buildAndExpand(created.id())
-                .toUri();
-        return ResponseEntity.created(location).body(created);
+        return Created.at(created.id(), created);
     }
 
     /**
@@ -124,12 +112,8 @@ public class RecipeController {
                     the stored recipe; times are not scaled, because doubling a recipe does not \
                     double how long it bakes.""")
     @ApiResponse(responseCode = "200", description = "The recipe, scaled if servings was given")
-    @ApiResponse(responseCode = "400", description = "servings is not a positive number up to 100",
-            content = @Content(mediaType = "application/problem+json",
-                    schema = @Schema(implementation = ProblemDetail.class)))
-    @ApiResponse(responseCode = "404", description = "No recipe has that id",
-            content = @Content(mediaType = "application/problem+json",
-                    schema = @Schema(implementation = ProblemDetail.class)))
+    @ProblemResponse(responseCode = "400", description = "servings is not a positive number up to 100")
+    @ProblemResponse(responseCode = "404", description = "No recipe has that id")
     @GetMapping("/{id}")
     public RecipeResponse byId(
             @PathVariable Long id,
@@ -146,13 +130,9 @@ public class RecipeController {
                     patch. The ingredient list is replaced outright - lines dropped from it are \
                     deleted.""")
     @ApiResponse(responseCode = "200", description = "The recipe as it now stands")
-    @ApiResponse(responseCode = "400", description =
-            "Validation failed, a category does not exist, or an ingredient is listed twice",
-            content = @Content(mediaType = "application/problem+json",
-                    schema = @Schema(implementation = ProblemDetail.class)))
-    @ApiResponse(responseCode = "404", description = "No recipe has that id",
-            content = @Content(mediaType = "application/problem+json",
-                    schema = @Schema(implementation = ProblemDetail.class)))
+    @ProblemResponse(responseCode = "400",
+            description = "Validation failed, a category does not exist, or an ingredient is listed twice")
+    @ProblemResponse(responseCode = "404", description = "No recipe has that id")
     @PutMapping("/{id}")
     public RecipeResponse update(@PathVariable Long id, @Valid @RequestBody RecipeRequest request) {
         return recipes.update(id, request);
@@ -164,9 +144,7 @@ public class RecipeController {
                     Takes the recipe's ingredient lines and category links with it, and leaves the \
                     shared ingredient and category rows alone.""")
     @ApiResponse(responseCode = "204", description = "Deleted; no body")
-    @ApiResponse(responseCode = "404", description = "No recipe has that id",
-            content = @Content(mediaType = "application/problem+json",
-                    schema = @Schema(implementation = ProblemDetail.class)))
+    @ProblemResponse(responseCode = "404", description = "No recipe has that id")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id) {

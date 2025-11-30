@@ -18,7 +18,12 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class CategoryApiIT extends AbstractIntegrationTest {
 
-    private static final String PANCAKES = """
+    /**
+     * Two categories rather than the base class's one, and that is the whole point: a recipe filed
+     * under both has to raise both counts. With a single-category fixture, a count that really
+     * meant "recipes having any category at all" would pass just as happily.
+     */
+    private static final String PANCAKES_IN_TWO_CATEGORIES = """
             {
               "title": "Pancakes",
               "instructions": "Whisk, rest, fry.",
@@ -52,7 +57,7 @@ class CategoryApiIT extends AbstractIntegrationTest {
 
     @Test
     void countsARecipeUnderEachOfItsCategoriesAndLeavesTheRestAtZero() {
-        post("/api/recipes", PANCAKES);
+        seedRecipe(PANCAKES_IN_TWO_CATEGORIES);
 
         Map<String, Long> counts = countsByName(body(get("/api/categories")));
 
@@ -66,7 +71,7 @@ class CategoryApiIT extends AbstractIntegrationTest {
     /** The count drops back when the recipe goes, which is the join rows cascading with it. */
     @Test
     void stopsCountingARecipeOnceItIsDeleted() {
-        long id = body(post("/api/recipes", PANCAKES)).get("id").asLong();
+        long id = seedRecipe(PANCAKES_IN_TWO_CATEGORIES);
         assertThat(countsByName(body(get("/api/categories")))).containsEntry("Breakfast", 1L);
 
         delete("/api/recipes/" + id);

@@ -23,6 +23,12 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class RecipeApiIT extends AbstractIntegrationTest {
 
+    /**
+     * Richer than the base class's minimal recipe, in two ways that both carry assertions: the
+     * description proves an optional field survives the round trip, and the second ingredient is
+     * what lets the replacement test tell a replaced list from a merged one - "Milk is gone" is
+     * only meaningful if Milk was there to begin with.
+     */
     private static final String PANCAKES = """
             {
               "title": "Pancakes",
@@ -121,7 +127,7 @@ class RecipeApiIT extends AbstractIntegrationTest {
      */
     @Test
     void reusesOneIngredientRowAcrossTwoRecipesRegardlessOfCase() {
-        long first = body(post("/api/recipes", PANCAKES)).get("id").asLong();
+        long first = seedRecipe(PANCAKES);
 
         long second = body(post("/api/recipes", """
                 {
@@ -156,7 +162,7 @@ class RecipeApiIT extends AbstractIntegrationTest {
      */
     @Test
     void replacesTheIngredientListWhileKeepingOneOfItsIngredients() {
-        long id = body(post("/api/recipes", PANCAKES)).get("id").asLong();
+        long id = seedRecipe(PANCAKES);
 
         ResponseEntity<String> updated = put("/api/recipes/" + id, """
                 {
@@ -185,7 +191,7 @@ class RecipeApiIT extends AbstractIntegrationTest {
      */
     @Test
     void deletingARecipeLeavesTheSharedIngredientRowsInPlace() {
-        long keeper = body(post("/api/recipes", PANCAKES)).get("id").asLong();
+        long keeper = seedRecipe(PANCAKES);
         long doomed = body(post("/api/recipes", """
                 {
                   "title": "Flatbread",
@@ -254,7 +260,7 @@ class RecipeApiIT extends AbstractIntegrationTest {
 
     @Test
     void rejectsAServingsCountItWouldRefuseToStore() {
-        long id = body(post("/api/recipes", PANCAKES)).get("id").asLong();
+        long id = seedRecipe(PANCAKES);
 
         assertThat(get("/api/recipes/" + id + "?servings=0").getStatusCode())
                 .isEqualTo(HttpStatus.BAD_REQUEST);

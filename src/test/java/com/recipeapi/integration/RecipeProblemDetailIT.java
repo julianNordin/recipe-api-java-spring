@@ -35,15 +35,6 @@ class RecipeProblemDetailIT extends AbstractIntegrationTest {
     @Autowired
     private IngredientRepository ingredients;
 
-    private static final String VALID = """
-            {
-              "title": "Pancakes",
-              "instructions": "Whisk, rest, fry.",
-              "prepMinutes": 10, "cookMinutes": 15, "servings": 4, "difficulty": "EASY",
-              "ingredients": [{"name": "Flour", "quantity": 300, "unit": "GRAM"}],
-              "categories": ["Breakfast"]
-            }""";
-
     @Test
     void reportsAMissingRecipeAsAProblemDetail() {
         ResponseEntity<String> response = get("/api/recipes/9999");
@@ -67,7 +58,7 @@ class RecipeProblemDetailIT extends AbstractIntegrationTest {
      */
     @Test
     void reportsAMissingRecipeOnEveryVerbThatAddressesOne() {
-        assertThat(put("/api/recipes/9999", VALID).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(put("/api/recipes/9999", A_RECIPE).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(delete("/api/recipes/9999").getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(body(delete("/api/recipes/9999")).get("type").asText())
                 .isEqualTo("urn:recipe-api:problem:not-found");
@@ -119,7 +110,7 @@ class RecipeProblemDetailIT extends AbstractIntegrationTest {
      */
     @Test
     void reportsAnUnknownEnumConstantAsAMalformedBodyWithoutLeakingInternals() {
-        ResponseEntity<String> response = post("/api/recipes", VALID.replace("\"EASY\"", "\"TRIVIAL\""));
+        ResponseEntity<String> response = post("/api/recipes", A_RECIPE.replace("\"EASY\"", "\"TRIVIAL\""));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
 

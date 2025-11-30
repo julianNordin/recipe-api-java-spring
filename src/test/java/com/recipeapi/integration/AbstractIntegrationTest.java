@@ -11,6 +11,7 @@ import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
@@ -44,6 +45,30 @@ import static org.assertj.core.api.Assertions.assertThat;
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = "spring.flyway.clean-disabled=false")
 abstract class AbstractIntegrationTest extends AbstractPostgresTest {
+
+    /**
+     * A minimal valid recipe: one ingredient, one category, every required field present.
+     *
+     * <p>Most tests in this tier need <em>a</em> recipe to exist so they can exercise something
+     * else - deleting the ingredient it uses, counting the category it is filed under, asking for
+     * an id that does not exist. For those the payload is scenery, and one copy of the scenery is
+     * enough.
+     *
+     * <p>Tests whose subject <em>is</em> the recipe keep a payload of their own, because there the
+     * details are load-bearing: {@code RecipeApiIT} needs a second ingredient to show that a PUT
+     * replaces the list rather than merging into it, and {@code CategoryApiIT} needs two
+     * categories to show the count is per category rather than per recipe. Folding those into
+     * this constant would leave their assertions depending on fields no reader of the test can
+     * see.
+     */
+    protected static final String A_RECIPE = """
+            {
+              "title": "Pancakes",
+              "instructions": "Whisk, rest, fry.",
+              "prepMinutes": 10, "cookMinutes": 15, "servings": 4, "difficulty": "EASY",
+              "ingredients": [{"name": "Flour", "quantity": 300, "unit": "GRAM"}],
+              "categories": ["Breakfast"]
+            }""";
 
     @Autowired
     protected TestRestTemplate http;
@@ -93,6 +118,26 @@ abstract class AbstractIntegrationTest extends AbstractPostgresTest {
         }
         flyway.clean();
         flyway.migrate();
+    }
+
+    /**
+     * Creates a recipe and returns its generated id.
+     *
+     * <p>The status is asserted rather than assumed: a fixture that stops being accepted should
+     * fail here, naming the rule it broke, instead of surfacing later as a null id in an
+     * assertion that has nothing to do with the cause.
+     */
+    protected long seedRecipe(String json) {
+        ResponseEntity<String> response = post("/api/recipes", json);
+        assertThat(response.getStatusCode())
+                .as("seeding a recipe failed: %s", response.getBody())
+                .isEqualTo(HttpStatus.CREATED);
+        return body(response).get("id").asLong();
+    }
+
+    /** Creates {@link #A_RECIPE}, for a test that needs a recipe to exist but not a specific one. */
+    protected long seedRecipe() {
+        return seedRecipe(A_RECIPE);
     }
 
     protected ResponseEntity<String> get(String path) {

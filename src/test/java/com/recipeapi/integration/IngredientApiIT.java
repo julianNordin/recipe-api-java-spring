@@ -19,15 +19,6 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class IngredientApiIT extends AbstractIntegrationTest {
 
-    private static final String PANCAKES = """
-            {
-              "title": "Pancakes",
-              "instructions": "Whisk, rest, fry.",
-              "prepMinutes": 10, "cookMinutes": 15, "servings": 4, "difficulty": "EASY",
-              "ingredients": [{"name": "Flour", "quantity": 300, "unit": "GRAM"}],
-              "categories": ["Breakfast"]
-            }""";
-
     @Test
     void listsTheSeededVocabularySortedByName() {
         JsonNode page = body(get("/api/ingredients?size=3"));
@@ -88,7 +79,7 @@ class IngredientApiIT extends AbstractIntegrationTest {
      */
     @Test
     void refusesToDeleteAnIngredientARecipeStillCallsFor() {
-        long recipeId = body(post("/api/recipes", PANCAKES)).get("id").asLong();
+        long recipeId = seedRecipe();
         long flourId = body(get("/api/ingredients?search=Flour")).get("content").get(0).get("id").asLong();
 
         ResponseEntity<String> refused = delete("/api/ingredients/" + flourId);
@@ -111,7 +102,7 @@ class IngredientApiIT extends AbstractIntegrationTest {
      */
     @Test
     void allowsTheDeleteOnceNoRecipeUsesTheIngredientAnyMore() {
-        long recipeId = body(post("/api/recipes", PANCAKES)).get("id").asLong();
+        long recipeId = seedRecipe();
         long flourId = body(get("/api/ingredients?search=Flour")).get("content").get(0).get("id").asLong();
 
         assertThat(delete("/api/ingredients/" + flourId).getStatusCode()).isEqualTo(HttpStatus.CONFLICT);

@@ -87,9 +87,16 @@ class OpenApiIT extends AbstractIntegrationTest {
                 .forEach(response -> {
                     String status = response.getKey();
                     JsonNode content = response.getValue().get("content");
-                    if (status.startsWith("2") || content == null) {
+                    if (status.startsWith("2")) {
                         return;
                     }
+                    // Not "skip if absent": a missing content block is the failure this test is
+                    // most likely to meet. The declaration is shared through a meta-annotation,
+                    // and were that ever to stop being merged the responses would lose their
+                    // bodies rather than gain a wrong one - which a skip would wave through.
+                    assertThat(content)
+                            .as("%s %s -> %s documents no response body at all", method, path, status)
+                            .isNotNull();
                     assertThat(content.fieldNames()).toIterable()
                             .as("%s %s -> %s is not documented as a problem detail", method, path, status)
                             .containsExactly("application/problem+json");

@@ -57,13 +57,12 @@ public class RecipeService {
     }
 
     /**
-     * The sort is validated here rather than in the controller, so every caller of this method is
-     * protected rather than only the one that happens to arrive over HTTP.
-     */
-    /**
      * Every filter is independently optional and they compose with AND. An absent one contributes
      * Specification.unrestricted(), so this reads the same however many were actually supplied -
      * there is no branching on which combination arrived.
+     *
+     * <p>The sort is validated here rather than in the controller, so every caller of this method
+     * is protected rather than only the one that happens to arrive over HTTP.
      */
     @Transactional(readOnly = true)
     public PagedResponse<RecipeSummaryResponse> findAll(RecipeFilter filter, Pageable pageable) {
