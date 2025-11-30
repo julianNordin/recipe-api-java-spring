@@ -1,5 +1,9 @@
 # recipe-api
 
+[![CI](https://github.com/julianNordin/recipe-api-java-spring/actions/workflows/ci.yml/badge.svg)](https://github.com/julianNordin/recipe-api-java-spring/actions/workflows/ci.yml)
+[![Java 21](https://img.shields.io/badge/Java-21-informational)](https://adoptium.net/temurin/releases/?version=21)
+[![Spring Boot 3.5](https://img.shields.io/badge/Spring%20Boot-3.5.16-informational)](https://spring.io/projects/spring-boot)
+
 A REST API for managing recipes, their ingredients and their categories, built with
 **Java 21** and **Spring Boot 3.5**. Recipes can be searched, filtered, sorted and paged;
 ingredients are shared across recipes rather than duplicated; quantities can be rescaled to
@@ -44,9 +48,30 @@ any serving count on the fly.
 ## Building
 
 ```bash
-./mvnw verify
+docker compose up -d db   # the development database
+./mvnw verify             # both test tiers
 ```
 
-Requires JDK 21. The Maven wrapper downloads Maven itself, so no local Maven install is
-needed. Docker is required from Phase 04 onward for the development database and the
-Testcontainers-backed tests.
+Requires JDK 21 and Docker. The Maven wrapper downloads Maven itself, so no local Maven
+install is needed.
+
+`verify` runs two tiers and prints a `Results:` block for each:
+
+| Tier | Plugin | What it runs |
+|---|---|---|
+| `*Test` | Surefire | Mockito unit tests, `@WebMvcTest` slices, `@DataJpaTest` against Testcontainers |
+| `*IT` | Failsafe | `@SpringBootTest` on a random port, end to end over real HTTP |
+
+Both must be green for the build to pass, and a failing unit test stops the build before the
+slower tier starts. The `@DataJpaTest` and `*IT` tiers start a real `postgres:16-alpine`
+container, so Docker has to be running.
+
+## Continuous integration
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs `./mvnw -B -ntp verify` on every
+push and pull request against `main` — the same command as above, so CI cannot pass on a build
+that does not reproduce locally. Testcontainers uses the Docker daemon `ubuntu-latest` already
+provides, so there is no `services:` block to keep in step with the tests.
+
+Each run uploads the Surefire and Failsafe reports as an artifact and writes a per-tier summary
+table to the job summary.
