@@ -3,6 +3,7 @@ package com.recipeapi.integration;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
@@ -31,7 +32,15 @@ class OpenApiIT extends AbstractIntegrationTest {
     /** Anything outside a data: URI - the only non-relative reference the page is allowed. */
     private static final Pattern EXTERNAL_URL = Pattern.compile("\\bhttps?://[^\"'\\s)]+");
 
+    /**
+     * Qualified by name, and it has to be: actuator contributes a
+     * {@code controllerEndpointHandlerMapping} that also extends {@link RequestMappingHandlerMapping},
+     * so injecting by type alone stopped resolving the moment the health endpoint was added. This
+     * one is the mapping holding the application's own {@code @RestController} methods, which is
+     * what "the paths this application maps" means here.
+     */
     @Autowired
+    @Qualifier("requestMappingHandlerMapping")
     private RequestMappingHandlerMapping handlerMapping;
 
     @Test

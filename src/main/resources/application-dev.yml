@@ -13,6 +13,14 @@ spring:
         # only way to see an N+1 for what it is rather than as "a lot of similar-looking queries".
         generate_statistics: true
 
+# Diagnostics again: /actuator/health lists every contributing component, so "is it the database?"
+# is answerable from the endpoint rather than from the logs. Off in the default profile, where the
+# same detail is reconnaissance.
+management:
+  endpoint:
+    health:
+      show-details: always
+
 logging:
   level:
     org.hibernate.SQL: DEBUG

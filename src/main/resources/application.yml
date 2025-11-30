@@ -32,6 +32,27 @@ spring:
     enabled: true
     locations: classpath:db/migration
 
+# Health only. Actuator ships a lot of endpoints - env, beans, mappings, configprops - and every
+# one of them describes the inside of this application to anyone who asks. Boot's default HTTP
+# exposure is already just health; it is written out because it is a decision rather than an
+# accident, and because the obvious way to "fix" a missing endpoint later is to set include: "*".
+#
+# The database is what makes this endpoint worth calling: spring-boot-starter-data-jpa contributes
+# a DataSourceHealthIndicator, so an application that is running but cannot reach Postgres reports
+# DOWN instead of a 200 that means nothing. That is the difference between a liveness check and a
+# readiness one.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      # The aggregate status, and nothing else. The per-component detail names the database
+      # product and its validation query, which is free reconnaissance for anyone who can reach
+      # the port. The dev profile turns it on, because reading it is the point there.
+      show-details: never
+
 # The spec is generated from the controllers and the records, so it cannot drift from the code.
 # Both paths are springdoc's defaults; they are written out because they are public URLs this
 # project's README points at, and a default that moves in a future version would move them.
