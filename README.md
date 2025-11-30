@@ -42,7 +42,7 @@ any serving count on the fly.
 - [x] **14** · Integration tests end to end
 - [x] **15** · Ingredients, categories & servings scaling
 - [x] **16** · OpenAPI / Swagger UI
-- [ ] **17** · GitHub Actions CI
+- [x] **17** · GitHub Actions CI
 - [ ] **18** · Refactor, actuator, README, `v1.0`
 
 ## Building
