@@ -30,6 +30,14 @@ updates:
       - dependency-name: org.springframework.boot:spring-boot-starter-parent
         update-types:
           - version-update:semver-major
+      # springdoc's major version tracks Spring Boot's, so the same reasoning applies to it:
+      # springdoc 3.x is built for Boot 4. Proven rather than assumed - the 2.9.0 -> 3.1.0 bump
+      # was opened, and the application failed to start with
+      #   BeanDefinitionOverrideException: Invalid bean definition with name 'jsonComponentModule'
+      # It moves when the Boot parent moves, which is a migration and not a pull request.
+      - dependency-name: org.springdoc:springdoc-openapi-starter-webmvc-ui
+        update-types:
+          - version-update:semver-major
 
   # The workflow pins actions by major tag - checkout@v7, setup-java@v5, upload-artifact@v7 - so
   # patches and minors arrive silently and only a major shows up here. That is the intent: a
