@@ -1,0 +1,46 @@
+version: 2
+
+updates:
+  # Maven. Almost every version in this project comes from the spring-boot-starter-parent BOM
+  # rather than from the pom, so most of what Dependabot has to offer here arrives as a single
+  # bump of the parent. springdoc is the one dependency pinned by hand, and the one that has to
+  # be checked against the Boot version rather than taken on its own.
+  - package-ecosystem: maven
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore
+    groups:
+      # One PR for the routine movement rather than five. Majors are deliberately left out of
+      # the group: those are the ones that deserve to be read on their own.
+      maven-minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # This project targets Spring Boot 3.5.x on purpose, and a major bump is not a version
+      # change - it is a migration. Boot 4 split spring-boot-starter-test into per-feature
+      # *-test starters and renamed spring-boot-starter-web to -webmvc, so the pom's dependency
+      # block does not survive the jump: the PR could not build, let alone merge. Moving to
+      # Boot 4 is a piece of work someone chooses to do, not a pull request to approve.
+      - dependency-name: org.springframework.boot:spring-boot-starter-parent
+        update-types:
+          - version-update:semver-major
+
+  # The workflow pins actions by major tag - checkout@v7, setup-java@v5, upload-artifact@v7 - so
+  # patches and minors arrive silently and only a major shows up here. That is the intent: a
+  # major of an action is the case worth a human reading the changelog.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
+    groups:
+      github-actions:
+        patterns:
+          - "*"
